@@ -128,7 +128,7 @@ export function HomePage() {
           </div>
           <div>
             <span className="contact-label">Contacto</span>
-            <p>+507 000-0000 · hola@melopets.com</p>
+            <p>+507 6867-5156 · melopets@melopets.com</p>
           </div>
         </div>
       </section>
