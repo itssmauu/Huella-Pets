@@ -21,8 +21,11 @@ export interface CrearProductoInput {
   stockMinimo?: number;
 }
 
-export function listarProductos(token: string, q?: string) {
-  const query = q ? `?q=${encodeURIComponent(q)}` : "";
+export function listarProductos(token: string, q?: string, soloActivos = true) {
+  const params = new URLSearchParams();
+  if (q) params.set("q", q);
+  if (!soloActivos) params.set("activos", "false");
+  const query = params.toString() ? `?${params.toString()}` : "";
   return apiFetch<Producto[]>(`/productos${query}`, { token });
 }
 

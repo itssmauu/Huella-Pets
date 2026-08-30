@@ -65,9 +65,9 @@ export function CatalogoPage() {
     let cancelado = false;
     setCargando(true);
     Promise.all([
-      listarProductos(token),
+      listarProductos(token, undefined, false),
       listarClientes(token),
-      listarServicios(token),
+      listarServicios(token, undefined, false),
       listarCategorias(token),
       listarTiposServicio(token),
     ])
@@ -331,7 +331,14 @@ export function CatalogoPage() {
                   <tbody>
                     {productosFiltrados.map((p) => (
                       <tr key={p.id_producto}>
-                        <td className="row-name">{p.nombre}</td>
+                        <td className="row-name">
+                          {p.nombre}
+                          {!p.estado && (
+                            <span className="badge badge-danger" style={{ marginLeft: 8 }}>
+                              Inactivo
+                            </span>
+                          )}
+                        </td>
                         <td>{p.categoria}</td>
                         <td className="num">{money(p.precio)}</td>
                         <td>
@@ -365,6 +372,7 @@ export function CatalogoPage() {
                             <button
                               className="icon-btn"
                               type="button"
+                              title={p.estado ? "Desactivar producto" : "Activar producto"}
                               aria-label={p.estado ? "Desactivar" : "Activar"}
                               onClick={() => desactivarProducto(p)}
                             >
@@ -516,7 +524,14 @@ export function CatalogoPage() {
                   <tbody>
                     {serviciosFiltrados.map((s) => (
                       <tr key={s.id_servicio}>
-                        <td className="row-name">{s.nombre}</td>
+                        <td className="row-name">
+                          {s.nombre}
+                          {!s.estado && (
+                            <span className="badge badge-danger" style={{ marginLeft: 8 }}>
+                              Inactivo
+                            </span>
+                          )}
+                        </td>
                         <td>{s.tipo_servicio}</td>
                         <td>{s.duracion_estimada ? `${s.duracion_estimada} min` : "—"}</td>
                         <td className="num">{money(s.precio)}</td>
@@ -543,6 +558,7 @@ export function CatalogoPage() {
                             <button
                               className="icon-btn"
                               type="button"
+                              title={s.estado ? "Desactivar servicio" : "Activar servicio"}
                               aria-label={s.estado ? "Desactivar" : "Activar"}
                               onClick={() => desactivarServicio(s)}
                             >

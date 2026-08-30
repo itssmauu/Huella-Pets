@@ -57,27 +57,19 @@ export function AppShell() {
             <span className="nav-label">Catálogo</span>
           </NavLink>
 
-          <span className="sidebar-section-label">Gerencia</span>
-          {usuario.rol === "GERENTE" ? (
-            <NavLink to="/app/dashboard" className={linkClass}>
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
-                <path d="M3 21h18" />
-                <rect x="5" y="10" width="4" height="8" />
-                <rect x="10.5" y="5" width="4" height="13" />
-                <rect x="16" y="13" width="4" height="5" />
-              </svg>
-              <span className="nav-label">Dashboard</span>
-            </NavLink>
-          ) : (
-            <button className="sidebar-link" disabled title="Solo disponible para el rol Gerente" type="button">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
-                <path d="M3 21h18" />
-                <rect x="5" y="10" width="4" height="8" />
-                <rect x="10.5" y="5" width="4" height="13" />
-                <rect x="16" y="13" width="4" height="5" />
-              </svg>
-              <span className="nav-label">Dashboard</span>
-            </button>
+          {usuario.rol === "GERENTE" && (
+            <>
+              <span className="sidebar-section-label">Gerencia</span>
+              <NavLink to="/app/dashboard" className={linkClass}>
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
+                  <path d="M3 21h18" />
+                  <rect x="5" y="10" width="4" height="8" />
+                  <rect x="10.5" y="5" width="4" height="13" />
+                  <rect x="16" y="13" width="4" height="5" />
+                </svg>
+                <span className="nav-label">Dashboard</span>
+              </NavLink>
+            </>
           )}
         </nav>
 

@@ -19,8 +19,11 @@ export interface CrearServicioInput {
   duracionEstimada?: number;
 }
 
-export function listarServicios(token: string, q?: string) {
-  const query = q ? `?q=${encodeURIComponent(q)}` : "";
+export function listarServicios(token: string, q?: string, soloActivos = true) {
+  const params = new URLSearchParams();
+  if (q) params.set("q", q);
+  if (!soloActivos) params.set("soloActivos", "false");
+  const query = params.toString() ? `?${params.toString()}` : "";
   return apiFetch<Servicio[]>(`/servicios${query}`, { token });
 }
 

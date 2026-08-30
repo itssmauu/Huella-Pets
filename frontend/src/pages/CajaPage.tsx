@@ -97,8 +97,8 @@ export function CajaPage() {
   if (!token) return null;
 
   const query = search.trim().toLowerCase();
-  const productosFiltrados = productos.filter((p) => p.nombre.toLowerCase().includes(query));
-  const serviciosFiltrados = servicios.filter((s) => s.nombre.toLowerCase().includes(query));
+  const productosFiltrados = productos.filter((p) => p.estado && p.nombre.toLowerCase().includes(query));
+  const serviciosFiltrados = servicios.filter((s) => s.estado && s.nombre.toLowerCase().includes(query));
 
   const hasServicio = cart.some((r) => r.tipo === "servicio");
   const subtotal = cart.reduce((s, r) => s + r.precio * r.cantidad, 0);

@@ -1,3 +1,4 @@
+import { useEffect } from "react";
 import { Link } from "react-router-dom";
 
 const SERVICIOS_HOME = [
@@ -45,6 +46,24 @@ const SERVICIOS_HOME = [
 ];
 
 export function HomePage() {
+  useEffect(() => {
+    const elementos = document.querySelectorAll(".fade-in-section");
+    if (elementos.length === 0) return;
+
+      const observer = new IntersectionObserver(
+        (entries) => {
+          entries.forEach((entry) => {
+            entry.target.classList.toggle("is-visible", entry.isIntersecting);
+          });
+        },
+        { threshold: 0.15, rootMargin: "0px 0px -60px 0px" }
+      );
+
+    elementos.forEach((el) => observer.observe(el));
+
+    return () => observer.disconnect();
+  }, []);
+
   return (
     <div className="home-page">
       <header className="home-nav">
@@ -78,7 +97,7 @@ export function HomePage() {
         </div>
       </section>
 
-      <section className="home-stats">
+      <section className="home-stats fade-in-section">
         <div className="stat-item">
           <span className="stat-value">8</span>
           <span className="stat-label">años en Panamá</span>
@@ -93,7 +112,7 @@ export function HomePage() {
         </div>
       </section>
 
-      <section className="home-section" id="nosotros">
+      <section className="home-section fade-in-section" id="nosotros">
         <h2>Sobre MELO Pets</h2>
         <p className="home-section-text">
           Desde 2018 acompañamos a las familias panameñas y a sus mascotas, combinando una tienda de productos
@@ -105,8 +124,12 @@ export function HomePage() {
       <section className="home-section" id="servicios">
         <h2>Nuestros servicios</h2>
         <div className="service-grid">
-          {SERVICIOS_HOME.map((s) => (
-            <div className="card service-card" key={s.titulo}>
+          {SERVICIOS_HOME.map((s, idx) => (
+            <div
+              className="card service-card fade-in-section"
+              key={s.titulo}
+              style={{ transitionDelay: `${idx * 90}ms` }}
+            >
               {s.icon}
               <h3>{s.titulo}</h3>
               <p>{s.texto}</p>
@@ -115,7 +138,7 @@ export function HomePage() {
         </div>
       </section>
 
-      <section className="home-section" id="contacto">
+      <section className="home-section fade-in-section" id="contacto">
         <h2>Visítanos</h2>
         <div className="contact-grid">
           <div>
