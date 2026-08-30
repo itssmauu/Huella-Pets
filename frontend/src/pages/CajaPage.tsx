@@ -1,49 +1,120 @@
-import { useState } from "react";
-import { CLIENTES, ITBMS_RATE, PRODUCTOS, SERVICIOS } from "../data/mockCatalog";
+import { useEffect, useState } from "react";
+import { useAuth } from "../context/AuthContext";
+import { ApiError } from "../api/client";
+import { listarProductos, type Producto } from "../api/productos";
+import { listarServicios, type Servicio } from "../api/servicios";
+import { listarClientes, type Cliente } from "../api/clientes";
+import { listarMascotasPorCliente, type Mascota } from "../api/mascotas";
+import { crearVenta } from "../api/ventas";
 
 interface CartRow {
+  tipo: "producto" | "servicio";
+  id: number;
   nombre: string;
   precio: number;
   cantidad: number;
-  tipo: "producto" | "servicio";
 }
 
-function money(n: number) {
-  return `$${n.toFixed(2)}`;
+function money(n: string | number) {
+  return `$${Number(n).toFixed(2)}`;
 }
-
-let facturaSeq = 9;
 
 export function CajaPage() {
+  const { token } = useAuth();
+
+  const [productos, setProductos] = useState<Producto[]>([]);
+  const [servicios, setServicios] = useState<Servicio[]>([]);
+  const [clientes, setClientes] = useState<Cliente[]>([]);
+  const [cargando, setCargando] = useState(true);
+  const [errorCarga, setErrorCarga] = useState<string | null>(null);
+
   const [posKind, setPosKind] = useState<"productos" | "servicios">("productos");
   const [search, setSearch] = useState("");
   const [cart, setCart] = useState<CartRow[]>([]);
-  const [clienteSel, setClienteSel] = useState(CLIENTES[0].nombre);
-  const [pago, setPago] = useState("Efectivo");
+
+  const [clienteSel, setClienteSel] = useState<number | null>(null);
+  const [mascotas, setMascotas] = useState<Mascota[]>([]);
+  const [mascotaSel, setMascotaSel] = useState<number | null>(null);
+  const [cargandoMascotas, setCargandoMascotas] = useState(false);
+
+  const [pago, setPago] = useState("EFECTIVO");
+  const [cobrando, setCobrando] = useState(false);
+  const [errorVenta, setErrorVenta] = useState<string | null>(null);
   const [toast, setToast] = useState({ visible: false, factura: "", total: "" });
 
-  const cliente = CLIENTES.find((c) => c.nombre === clienteSel) ?? CLIENTES[0];
-  const [mascotaSel, setMascotaSel] = useState(cliente.mascotas[0]?.nombre ?? "");
+  useEffect(() => {
+    if (!token) return;
+    let cancelado = false;
+    setCargando(true);
+    Promise.all([listarProductos(token), listarServicios(token), listarClientes(token)])
+      .then(([p, s, c]) => {
+        if (cancelado) return;
+        setProductos(p);
+        setServicios(s);
+        setClientes(c);
+        if (c.length > 0) setClienteSel(c[0].id_cliente);
+        setErrorCarga(null);
+      })
+      .catch((err) => {
+        if (cancelado) return;
+        setErrorCarga(err instanceof ApiError ? err.message : "No se pudo cargar la caja.");
+      })
+      .finally(() => {
+        if (!cancelado) setCargando(false);
+      });
+    return () => {
+      cancelado = true;
+    };
+  }, [token]);
+
+  useEffect(() => {
+    if (!token || !clienteSel) {
+      setMascotas([]);
+      setMascotaSel(null);
+      return;
+    }
+    let cancelado = false;
+    setCargandoMascotas(true);
+    listarMascotasPorCliente(token, clienteSel)
+      .then((lista) => {
+        if (cancelado) return;
+        setMascotas(lista);
+        setMascotaSel(lista[0]?.id_mascota ?? null);
+      })
+      .catch(() => {
+        if (cancelado) return;
+        setMascotas([]);
+        setMascotaSel(null);
+      })
+      .finally(() => {
+        if (!cancelado) setCargandoMascotas(false);
+      });
+    return () => {
+      cancelado = true;
+    };
+  }, [token, clienteSel]);
+
+  if (!token) return null;
 
   const query = search.trim().toLowerCase();
-  const productosFiltrados = PRODUCTOS.filter((p) => p.nombre.toLowerCase().includes(query));
-  const serviciosFiltrados = SERVICIOS.filter((s) => s.nombre.toLowerCase().includes(query));
+  const productosFiltrados = productos.filter((p) => p.nombre.toLowerCase().includes(query));
+  const serviciosFiltrados = servicios.filter((s) => s.nombre.toLowerCase().includes(query));
 
   const hasServicio = cart.some((r) => r.tipo === "servicio");
   const subtotal = cart.reduce((s, r) => s + r.precio * r.cantidad, 0);
-  const itbms = subtotal * ITBMS_RATE;
+  const itbms = subtotal * 0.07;
   const total = subtotal + itbms;
   const count = cart.reduce((s, r) => s + r.cantidad, 0);
 
-  function addToCart(nombre: string, precio: number, tipo: "producto" | "servicio") {
+  function addToCart(tipo: "producto" | "servicio", id: number, nombre: string, precio: number) {
     setCart((prev) => {
-      const idx = prev.findIndex((r) => r.nombre === nombre);
+      const idx = prev.findIndex((r) => r.tipo === tipo && r.id === id);
       if (idx >= 0) {
         const next = [...prev];
         next[idx] = { ...next[idx], cantidad: next[idx].cantidad + 1 };
         return next;
       }
-      return [...prev, { nombre, precio, cantidad: 1, tipo }];
+      return [...prev, { tipo, id, nombre, precio, cantidad: 1 }];
     });
   }
 
@@ -64,22 +135,58 @@ export function CajaPage() {
     setCart((prev) => prev.filter((_, i) => i !== idx));
   }
 
-  function handleCambiarCliente(nombre: string) {
-    setClienteSel(nombre);
-    const nuevoCliente = CLIENTES.find((c) => c.nombre === nombre);
-    setMascotaSel(nuevoCliente?.mascotas[0]?.nombre ?? "");
+  function handleCambiarCliente(idCliente: number) {
+    setClienteSel(idCliente);
   }
 
-  function handleCobrar() {
-    if (cart.length === 0) return;
-    const factura = `F-2026-${String(facturaSeq++).padStart(6, "0")}`;
-    setToast({ visible: true, factura, total: money(total) });
-    setTimeout(() => setToast((t) => ({ ...t, visible: false })), 3200);
-    setCart([]);
+  async function handleCobrar() {
+    if (!token || cart.length === 0 || !clienteSel) return;
+    setErrorVenta(null);
+
+    if (hasServicio && !mascotaSel) {
+      setErrorVenta("Selecciona la mascota que recibe el servicio.");
+      return;
+    }
+
+    setCobrando(true);
+    try {
+      const productosPayload = cart
+        .filter((r) => r.tipo === "producto")
+        .map((r) => ({ idProducto: r.id, cantidad: r.cantidad }));
+
+      const serviciosPayload = cart
+        .filter((r) => r.tipo === "servicio")
+        .flatMap((r) => Array.from({ length: r.cantidad }, () => ({ idServicio: r.id, idMascota: mascotaSel! })));
+
+      const venta = await crearVenta(token, {
+        idCliente: clienteSel,
+        metodoPago: pago as "EFECTIVO" | "TARJETA" | "TRANSFERENCIA",
+        productos: productosPayload.length > 0 ? productosPayload : undefined,
+        servicios: serviciosPayload.length > 0 ? serviciosPayload : undefined,
+      });
+
+      setToast({ visible: true, factura: venta.numero_factura, total: money(venta.total) });
+      setTimeout(() => setToast((t) => ({ ...t, visible: false })), 3200);
+      setCart([]);
+
+      // Refresca productos para reflejar el stock ya descontado por la venta.
+      const productosActualizados = await listarProductos(token);
+      setProductos(productosActualizados);
+    } catch (err) {
+      setErrorVenta(err instanceof ApiError ? err.message : "No se pudo registrar la venta. Intenta de nuevo.");
+    } finally {
+      setCobrando(false);
+    }
+  }
+
+  if (cargando) {
+    return <p className="sub">Cargando caja…</p>;
   }
 
   return (
     <>
+      {errorCarga && <div className="alert">{errorCarga}</div>}
+
       <div className="pos-grid">
         <div className="card">
           <div className="pos-search">
@@ -113,11 +220,11 @@ export function CajaPage() {
                   const outOfStock = p.stock <= 0;
                   return (
                     <button
-                      key={p.nombre}
+                      key={p.id_producto}
                       type="button"
                       className="item-card"
                       disabled={outOfStock}
-                      onClick={() => addToCart(p.nombre, p.precio, "producto")}
+                      onClick={() => addToCart("producto", p.id_producto, p.nombre, Number(p.precio))}
                     >
                       <span className="cat">{p.categoria}</span>
                       <span className="name">{p.nombre}</span>
@@ -128,15 +235,15 @@ export function CajaPage() {
                 })
               : serviciosFiltrados.map((s) => (
                   <button
-                    key={s.nombre}
+                    key={s.id_servicio}
                     type="button"
                     className="item-card"
-                    onClick={() => addToCart(s.nombre, s.precio, "servicio")}
+                    onClick={() => addToCart("servicio", s.id_servicio, s.nombre, Number(s.precio))}
                   >
-                    <span className="cat">{s.tipo}</span>
+                    <span className="cat">{s.tipo_servicio}</span>
                     <span className="name">{s.nombre}</span>
                     <span className="price">{money(s.precio)}</span>
-                    <span className="stock">{s.duracion}</span>
+                    <span className="stock">{s.duracion_estimada ? `${s.duracion_estimada} min` : ""}</span>
                   </button>
                 ))}
           </div>
@@ -155,7 +262,7 @@ export function CajaPage() {
               <div className="cart-empty">Agrega productos o servicios desde la izquierda para comenzar la venta.</div>
             ) : (
               cart.map((row, idx) => (
-                <div className="cart-row" key={row.nombre}>
+                <div className="cart-row" key={`${row.tipo}-${row.id}`}>
                   <div style={{ flex: 1 }}>
                     <div className="name">{row.nombre}</div>
                     <div className="unit">{money(row.precio)} c/u</div>
@@ -181,19 +288,33 @@ export function CajaPage() {
           <div className="cart-selects">
             <div className="field">
               <label htmlFor="sel-cliente">Cliente</label>
-              <select className="select" id="sel-cliente" value={clienteSel} onChange={(e) => handleCambiarCliente(e.target.value)}>
-                {CLIENTES.map((c) => (
-                  <option key={c.nombre}>{c.nombre}</option>
+              <select
+                className="select"
+                id="sel-cliente"
+                value={clienteSel ?? ""}
+                onChange={(e) => handleCambiarCliente(Number(e.target.value))}
+              >
+                {clientes.map((c) => (
+                  <option key={c.id_cliente} value={c.id_cliente}>
+                    {c.nombre} {c.apellido}
+                  </option>
                 ))}
               </select>
             </div>
             {hasServicio && (
               <div className="field">
                 <label htmlFor="sel-mascota">Mascota</label>
-                <select className="select" id="sel-mascota" value={mascotaSel} onChange={(e) => setMascotaSel(e.target.value)}>
-                  {cliente.mascotas.map((m) => (
-                    <option key={m.nombre}>
-                      {m.nombre} ({m.tipo})
+                <select
+                  className="select"
+                  id="sel-mascota"
+                  value={mascotaSel ?? ""}
+                  onChange={(e) => setMascotaSel(Number(e.target.value))}
+                >
+                  {cargandoMascotas && <option value="">Cargando…</option>}
+                  {!cargandoMascotas && mascotas.length === 0 && <option value="">Este cliente no tiene mascotas</option>}
+                  {mascotas.map((m) => (
+                    <option key={m.id_mascota} value={m.id_mascota}>
+                      {m.nombre} ({m.especie})
                     </option>
                   ))}
                 </select>
@@ -202,9 +323,9 @@ export function CajaPage() {
             <div className="field">
               <label htmlFor="sel-pago">Método de pago</label>
               <select className="select" id="sel-pago" value={pago} onChange={(e) => setPago(e.target.value)}>
-                <option>Efectivo</option>
-                <option>Tarjeta</option>
-                <option>Transferencia</option>
+                <option value="EFECTIVO">Efectivo</option>
+                <option value="TARJETA">Tarjeta</option>
+                <option value="TRANSFERENCIA">Transferencia</option>
               </select>
             </div>
           </div>
@@ -224,9 +345,16 @@ export function CajaPage() {
             </div>
           </div>
 
+          {errorVenta && <div className="alert">{errorVenta}</div>}
+
           <div className="cart-actions">
-            <button className="btn btn-primary btn-block" type="button" disabled={cart.length === 0} onClick={handleCobrar}>
-              Cobrar venta
+            <button
+              className="btn btn-primary btn-block"
+              type="button"
+              disabled={cart.length === 0 || !clienteSel || cobrando || (hasServicio && !mascotaSel)}
+              onClick={handleCobrar}
+            >
+              {cobrando ? "Cobrando…" : "Cobrar venta"}
             </button>
             <button className="btn btn-ghost btn-block btn-sm" type="button" onClick={() => setCart([])}>
               Vaciar carrito
