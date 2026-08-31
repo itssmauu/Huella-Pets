@@ -31,3 +31,18 @@ export function listarMascotasPorCliente(token: string, idCliente: number) {
 export function crearMascota(token: string, input: CrearMascotaInput) {
   return apiFetch<Mascota>("/mascotas", { method: "POST", token, body: input });
 }
+
+export interface ActualizarMascotaInput {
+  nombre?: string;
+  especie?: string;
+  raza?: string;
+  sexo?: "M" | "H";
+  fechaNacimiento?: string;
+  peso?: number;
+  observaciones?: string;
+  estado?: boolean;
+}
+
+export function actualizarMascota(token: string, id: number, cambios: ActualizarMascotaInput) {
+  return apiFetch<Mascota>(`/mascotas/${id}`, { method: "PUT", token, body: cambios });
+}

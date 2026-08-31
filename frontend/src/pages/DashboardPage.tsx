@@ -79,6 +79,7 @@ export function DashboardPage() {
 
   const maxVendido = Math.max(1, ...data.productosMasVendidos.map((p) => p.cantidad_vendida));
   const maxServicio = Math.max(1, ...data.serviciosMasRealizados.map((s) => s.cantidad_realizados));
+  const totalInactivos = data.productosInactivos.length + data.serviciosInactivos.length;
 
   return (
     <>
@@ -223,6 +224,36 @@ export function DashboardPage() {
                   <div className="rank-bar" style={{ width: `${(s.cantidad_realizados / maxServicio) * 100}%` }} />
                 </div>
                 <span className="rank-meta">{s.cantidad_realizados} veces</span>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        <div className="card">
+          <div className="panel-title">
+            <h2>Productos y servicios inactivos</h2>
+            <span className="count">{totalInactivos}</span>
+          </div>
+          <div className="panel-body">
+            {totalInactivos === 0 && <p className="sub">No hay productos ni servicios desactivados.</p>}
+            {data.productosInactivos.map((p) => (
+              <div className="alert-row" key={`prod-inactivo-${p.id_producto}`}>
+                <div className="alert-text">
+                  <div className="t">{p.producto}</div>
+                  <div className="s">
+                    {p.categoria} · {p.stock} en stock
+                  </div>
+                </div>
+                <span className="badge badge-danger">Inactivo</span>
+              </div>
+            ))}
+            {data.serviciosInactivos.map((s) => (
+              <div className="alert-row" key={`serv-inactivo-${s.id_servicio}`}>
+                <div className="alert-text">
+                  <div className="t">{s.servicio}</div>
+                  <div className="s">{s.tipo_servicio}</div>
+                </div>
+                <span className="badge badge-danger">Inactivo</span>
               </div>
             ))}
           </div>

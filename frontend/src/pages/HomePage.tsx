@@ -68,7 +68,9 @@ export function HomePage() {
     <div className="home-page">
       <header className="home-nav">
         <div className="brand-mark">
-          <div className="logo-dot">M</div>
+          <div className="logo-dot">
+            <img src="/MELOPets_logo.png" alt="MELO Pets" />
+          </div>
           <span>MELO Pets</span>
         </div>
         <nav className="home-nav-links" aria-label="Navegación">

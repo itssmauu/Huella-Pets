@@ -37,6 +37,19 @@ export interface ServicioMasRealizado {
   ingresos_generados: string;
 }
 
+export interface ProductoInactivo {
+  id_producto: number;
+  producto: string;
+  categoria: string;
+  stock: number;
+}
+
+export interface ServicioInactivo {
+  id_servicio: number;
+  servicio: string;
+  tipo_servicio: string;
+}
+
 export interface DashboardData {
   ventasHoy: { cantidadVentas: number; totalVendido: string; itbms: string };
   ventasAyerCantidad: number;
@@ -48,6 +61,8 @@ export interface DashboardData {
   ventasRecientes: VentaReciente[];
   productosMasVendidos: ProductoMasVendido[];
   serviciosMasRealizados: ServicioMasRealizado[];
+  productosInactivos: ProductoInactivo[];
+  serviciosInactivos: ServicioInactivo[];
 }
 
 export function obtenerDashboard(token: string) {

@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { Fragment, useEffect, useState } from "react";
 import { useAuth } from "../context/AuthContext";
 import { ApiError } from "../api/client";
 import { listarProductos, crearProducto, actualizarProducto, ajustarStockProducto, type Producto } from "../api/productos";
@@ -6,7 +6,8 @@ import { listarClientes, crearCliente, actualizarCliente, type Cliente } from ".
 import { listarServicios, crearServicio, actualizarServicio, type Servicio } from "../api/servicios";
 import { listarCategorias, type Categoria } from "../api/categorias";
 import { listarTiposServicio, type TipoServicio } from "../api/tiposServicio";
-import { listarMascotasPorCliente, crearMascota, type Mascota } from "../api/mascotas";
+import { listarMascotasPorCliente, crearMascota, actualizarMascota, type Mascota } from "../api/mascotas";
+
 
 type CatalogTab = "productos" | "clientes" | "servicios";
 type ModalKind = "producto" | "cliente" | "servicio" | "mascota" | null;
@@ -233,16 +234,28 @@ export function CatalogoPage() {
           setFormError("Completa nombre y especie.");
           return;
         }
-        const nueva = await crearMascota(token, {
-          idCliente: modalClienteId,
-          nombre: form.nombre,
-          especie: form.especie,
-          raza: form.raza || undefined,
-        });
-        setMascotasPorCliente((prev) => ({
-          ...prev,
-          [modalClienteId]: [...(prev[modalClienteId] ?? []), nueva],
-        }));
+        if (editandoId) {
+          const actualizada = await actualizarMascota(token, editandoId, {
+            nombre: form.nombre,
+            especie: form.especie,
+            raza: form.raza || undefined,
+          });
+          setMascotasPorCliente((prev) => ({
+            ...prev,
+            [modalClienteId]: (prev[modalClienteId] ?? []).map((m) => (m.id_mascota === editandoId ? actualizada : m)),
+          }));
+        } else {
+          const nueva = await crearMascota(token, {
+            idCliente: modalClienteId,
+            nombre: form.nombre,
+            especie: form.especie,
+            raza: form.raza || undefined,
+          });
+          setMascotasPorCliente((prev) => ({
+            ...prev,
+            [modalClienteId]: [...(prev[modalClienteId] ?? []), nueva],
+          }));
+        }
         setClienteExpandido(modalClienteId);
       }
 
@@ -414,18 +427,18 @@ export function CatalogoPage() {
                   </thead>
                   <tbody>
                     {clientesFiltrados.map((c) => (
-                      <tr key={c.id_cliente}>
-                        <td>
-                          <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-                            <span className="avatar-sm">{initials(`${c.nombre} ${c.apellido}`)}</span>
-                            <span className="row-name">
-                              {c.nombre} {c.apellido}
-                            </span>
-                          </div>
-                        </td>
-                        <td className="num">{c.telefono || "—"}</td>
-                        <td>
-                          <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+                      <Fragment key={c.id_cliente}>
+                        <tr>
+                          <td>
+                            <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                              <span className="avatar-sm">{initials(`${c.nombre} ${c.apellido}`)}</span>
+                              <span className="row-name">
+                                {c.nombre} {c.apellido}
+                              </span>
+                            </div>
+                          </td>
+                          <td className="num">{c.telefono || "—"}</td>
+                          <td>
                             <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
                               <button
                                 className="icon-btn"
@@ -449,8 +462,34 @@ export function CatalogoPage() {
                                 +
                               </button>
                             </div>
-                            {clienteExpandido === c.id_cliente && (
-                              <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
+                          </td>
+                          <td className="actions-cell">
+                            <button
+                              className="icon-btn"
+                              type="button"
+                              aria-label="Editar"
+                              onClick={() =>
+                                abrirModal("cliente", {
+                                  editId: c.id_cliente,
+                                  valoresIniciales: {
+                                    nombre: c.nombre,
+                                    apellido: c.apellido,
+                                    telefono: c.telefono || "",
+                                    email: c.email || "",
+                                  },
+                                })
+                              }
+                            >
+                              ✎
+                            </button>
+                          </td>
+                        </tr>
+                        {clienteExpandido === c.id_cliente && (
+                          <tr className="pet-detail-row">
+                            <td></td>
+                            <td></td>
+                            <td>
+                              <div className="pet-detail-panel">
                                 {cargandoMascotas && !mascotasPorCliente[c.id_cliente] && (
                                   <span className="sub">Cargando…</span>
                                 )}
@@ -458,35 +497,35 @@ export function CatalogoPage() {
                                   <span className="sub">Sin mascotas registradas</span>
                                 )}
                                 {mascotasPorCliente[c.id_cliente]?.map((m) => (
-                                  <span className="pet-tag" key={m.id_mascota}>
+                                  <span key={m.id_mascota} className="pet-tag">
                                     {m.nombre} · {m.especie}
+                                    <button
+                                      type="button"
+                                      className="pet-tag-edit"
+                                      title="Editar mascota"
+                                      aria-label={`Editar ${m.nombre}`}
+                                      onClick={() =>
+                                        abrirModal("mascota", {
+                                          clienteId: c.id_cliente,
+                                          editId: m.id_mascota,
+                                          valoresIniciales: {
+                                            nombre: m.nombre,
+                                            especie: m.especie,
+                                            raza: m.raza || "",
+                                          },
+                                        })
+                                      }
+                                    >
+                                      ✎
+                                    </button>
                                   </span>
                                 ))}
                               </div>
-                            )}
-                          </div>
-                        </td>
-                        <td className="actions-cell">
-                          <button
-                            className="icon-btn"
-                            type="button"
-                            aria-label="Editar"
-                            onClick={() =>
-                              abrirModal("cliente", {
-                                editId: c.id_cliente,
-                                valoresIniciales: {
-                                  nombre: c.nombre,
-                                  apellido: c.apellido,
-                                  telefono: c.telefono || "",
-                                  email: c.email || "",
-                                },
-                              })
-                            }
-                          >
-                            ✎
-                          </button>
-                        </td>
-                      </tr>
+                            </td>
+                            <td></td>
+                          </tr>
+                        )}
+                      </Fragment>
                     ))}
                   </tbody>
                 </table>
@@ -584,7 +623,7 @@ export function CatalogoPage() {
                 {modal === "producto" && (editandoId ? "Editar producto" : "Nuevo producto")}
                 {modal === "cliente" && (editandoId ? "Editar cliente" : "Nuevo cliente")}
                 {modal === "servicio" && (editandoId ? "Editar servicio" : "Nuevo servicio")}
-                {modal === "mascota" && "Nueva mascota"}
+                {modal === "mascota" && (editandoId ? "Editar mascota" : "Nueva mascota")}
               </h3>
               <button className="modal-close" type="button" onClick={cerrarModal} aria-label="Cerrar">
                 ✕

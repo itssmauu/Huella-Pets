@@ -57,6 +57,19 @@ interface ServicioMasRealizadoRow {
   ingresos_generados: string;
 }
 
+interface ProductoInactivoRow {
+  id_producto: number;
+  producto: string;
+  categoria: string;
+  stock: number;
+}
+
+interface ServicioInactivoRow {
+  id_servicio: number;
+  servicio: string;
+  tipo_servicio: string;
+}
+
 export interface DashboardData {
   ventasHoy: { cantidadVentas: number; totalVendido: string; itbms: string };
   ventasAyerCantidad: number;
@@ -68,6 +81,8 @@ export interface DashboardData {
   ventasRecientes: VentaRecienteRow[];
   productosMasVendidos: ProductoMasVendidoRow[];
   serviciosMasRealizados: ServicioMasRealizadoRow[];
+  productosInactivos: ProductoInactivoRow[];
+  serviciosInactivos: ServicioInactivoRow[];
 }
 
 export async function obtenerDashboard(): Promise<DashboardData> {
@@ -82,6 +97,8 @@ export async function obtenerDashboard(): Promise<DashboardData> {
     recientesRes,
     masVendidosRes,
     masSolicitadosRes,
+    productosInactivosRes,
+    serviciosInactivosRes,
   ] = await Promise.all([
     query<VentaDiaRow>(`SELECT cantidad_ventas, subtotal, itbms, total_vendido FROM vw_ventas_diarias WHERE dia = CURRENT_DATE`),
     query<VentaAyerRow>(`SELECT cantidad_ventas FROM vw_ventas_diarias WHERE dia = CURRENT_DATE - INTERVAL '1 day'`),
@@ -93,6 +110,8 @@ export async function obtenerDashboard(): Promise<DashboardData> {
     query<VentaRecienteRow>(`SELECT * FROM vw_historial_compras WHERE estado = 'COMPLETADA' LIMIT 4`),
     query<ProductoMasVendidoRow>(`SELECT * FROM vw_productos_mas_vendidos LIMIT 3`),
     query<ServicioMasRealizadoRow>(`SELECT * FROM vw_servicios_mas_realizados LIMIT 3`),
+    query<ProductoInactivoRow>(`SELECT * FROM vw_productos_inactivos LIMIT 10`),
+    query<ServicioInactivoRow>(`SELECT * FROM vw_servicios_inactivos LIMIT 10`),
   ]);
 
   const hoy = ventasHoyRes.rows[0];
@@ -115,5 +134,7 @@ export async function obtenerDashboard(): Promise<DashboardData> {
     ventasRecientes: recientesRes.rows,
     productosMasVendidos: masVendidosRes.rows,
     serviciosMasRealizados: masSolicitadosRes.rows,
+    productosInactivos: productosInactivosRes.rows,
+    serviciosInactivos: serviciosInactivosRes.rows,
   };
 }

@@ -37,7 +37,9 @@ export function LoginPage() {
             ‹ Volver al inicio
           </Link>
           <div className="brand-mark">
-            <div className="logo-dot">M</div>
+            <div className="logo-dot">
+              <img src="/MELOPets_logo.png" alt="MELO Pets" />
+            </div>
             <span>MELO Pets</span>
           </div>
           <div>
