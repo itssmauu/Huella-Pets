@@ -212,7 +212,85 @@ tbody tr:hover { background: var(--surface-alt); }
 .home-nav-links a { font-size: 14px; font-weight: 600; color: var(--ink-soft); text-decoration: none; }
 .home-nav-links a:hover { color: var(--primary); }
 @media (max-width: 640px) { .home-nav-links { display: none; } }
-.home-hero { padding: 84px 6vw 52px; max-width: 720px; display: flex; flex-direction: column; gap: 16px; }
+
+.home-hero-wrap {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  align-items: center;
+  gap: 48px;
+  padding: 84px 6vw 52px;
+}
+@media (max-width: 900px) {
+  .home-hero-wrap {
+    grid-template-columns: 1fr;
+    padding: 56px 6vw 40px;
+  }
+  .home-hero-media { order: -1; }
+}
+
+.home-hero { display: flex; flex-direction: column; gap: 16px; max-width: 560px; }
+
+.home-hero-media {
+  position: relative;
+  border-radius: 20px;
+  overflow: hidden;
+  box-shadow: var(--pub-shadow);
+  aspect-ratio: 4 / 3;
+}
+.home-hero-media img.hero-carousel-slide {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+  opacity: 0;
+  transition: opacity 900ms ease;
+}
+.home-hero-media img.hero-carousel-slide.is-active {
+  opacity: 1;
+}
+
+.hero-carousel-tag {
+  position: absolute;
+  left: 16px;
+  bottom: 16px;
+  padding: 6px 14px;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--ink) 55%, transparent);
+  color: #fff;
+  font-size: 12.5px;
+  font-weight: 600;
+  letter-spacing: 0.2px;
+  backdrop-filter: blur(4px);
+}
+
+.hero-carousel-dots {
+  position: absolute;
+  right: 16px;
+  bottom: 16px;
+  display: flex;
+  gap: 6px;
+}
+.hero-carousel-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 999px;
+  border: none;
+  background: color-mix(in srgb, #ffffff 55%, transparent);
+  cursor: pointer;
+  padding: 0;
+  transition: transform 200ms ease, background 200ms ease;
+}
+.hero-carousel-dot.is-active {
+  background: #ffffff;
+  transform: scale(1.35);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .hero-carousel-slide { transition: none; }
+}
+
 .eyebrow { font-size: 12.5px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.07em; color: var(--primary); }
 .home-hero h1 { font-size: clamp(30px, 4.2vw, 44px); line-height: 1.14; font-weight: 700; max-width: 16ch; }
 .home-hero-sub { font-size: 16px; color: var(--ink-soft); max-width: 46ch; }
@@ -498,4 +576,78 @@ tbody tr:hover { background: var(--surface-alt); }
   flex-wrap: wrap;
   align-items: center;
   gap: 6px;
+}
+
+/* ---------------- Rediseño "Soft Elevated" — sitio público ---------------- */
+
+.home-page, .login-page {
+  --pub-shadow: 0 20px 50px -12px rgba(31, 74, 61, 0.25), 0 6px 16px -6px rgba(31, 74, 61, 0.12);
+}
+:root:not([data-theme="light"]) .home-page,
+:root:not([data-theme="light"]) .login-page,
+:root[data-theme="dark"] .home-page,
+:root[data-theme="dark"] .login-page {
+  --pub-shadow: 0 24px 60px -16px rgba(0, 0, 0, 0.55), 0 8px 20px -8px rgba(0, 0, 0, 0.35);
+}
+
+/* Botones tipo pill con relieve suave */
+.home-page .btn-primary,
+.login-page .btn-primary {
+  border-radius: 999px;
+  box-shadow: 0 10px 24px -8px color-mix(in srgb, var(--primary) 55%, transparent);
+  transition: background-color 0.15s ease, transform 0.15s ease, box-shadow 0.15s ease;
+}
+.home-page .btn-primary:hover,
+.login-page .btn-primary:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 14px 30px -8px color-mix(in srgb, var(--primary) 60%, transparent);
+}
+.home-page .btn-ghost {
+  border-radius: 999px;
+}
+
+/* Halo difuminado detrás del hero */
+.home-hero {
+  position: relative;
+}
+.home-hero::before {
+  content: "";
+  position: absolute;
+  top: -60px; left: -80px;
+  width: 420px; height: 420px;
+  background: radial-gradient(circle, color-mix(in srgb, var(--primary) 35%, transparent), transparent 70%);
+  filter: blur(10px);
+  z-index: -1;
+  pointer-events: none;
+}
+
+/* Tarjetas del sitio público con elevación suave y hover */
+.home-page .service-card,
+.login-card {
+  box-shadow: var(--pub-shadow);
+  border-radius: 16px;
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+.home-page .service-card:hover {
+  transform: translateY(-3px);
+  box-shadow: 0 26px 60px -14px color-mix(in srgb, var(--primary) 30%, transparent);
+}
+
+.login-card {
+  border-radius: 20px;
+}
+
+/* Halo detrás del login */
+.login-page {
+  position: relative;
+  overflow: hidden;
+}
+.login-page::before {
+  content: "";
+  position: absolute;
+  top: -120px; right: -100px;
+  width: 480px; height: 480px;
+  background: radial-gradient(circle, color-mix(in srgb, var(--accent) 30%, transparent), transparent 70%);
+  filter: blur(6px);
+  pointer-events: none;
 }

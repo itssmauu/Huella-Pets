@@ -1,4 +1,4 @@
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 
 const SERVICIOS_HOME = [
@@ -45,23 +45,56 @@ const SERVICIOS_HOME = [
   },
 ];
 
+const CARRUSEL_HERO = [
+  {
+    src: "https://images.unsplash.com/photo-1450778869180-41d0601e046e?auto=format&fit=crop&w=900&q=80",
+    alt: "Perro y gato abrazados, felices y saludables",
+    etiqueta: "Nuestros animales",
+  },
+  {
+    src: "https://images.unsplash.com/photo-1568640347023-a616a30bc3bd?auto=format&fit=crop&w=900&q=80",
+    alt: "Juguetes y accesorios coloridos para mascotas",
+    etiqueta: "Productos y accesorios",
+  },
+  {
+    src: "https://images.unsplash.com/photo-1719464454959-9cf304ef4774?auto=format&fit=crop&w=900&q=80",
+    alt: "Perro recibiendo un servicio de estética canina",
+    etiqueta: "Servicios de estética",
+  },
+];
+
 export function HomePage() {
+  const [slideActual, setSlideActual] = useState(0);
+
   useEffect(() => {
     const elementos = document.querySelectorAll(".fade-in-section");
     if (elementos.length === 0) return;
 
-      const observer = new IntersectionObserver(
-        (entries) => {
-          entries.forEach((entry) => {
-            entry.target.classList.toggle("is-visible", entry.isIntersecting);
-          });
-        },
-        { threshold: 0.15, rootMargin: "0px 0px -60px 0px" }
-      );
+    const observer = new IntersectionObserver(
+      (entries) => {
+        entries.forEach((entry) => {
+          entry.target.classList.toggle("is-visible", entry.isIntersecting);
+        });
+      },
+      { threshold: 0.15, rootMargin: "0px 0px -60px 0px" }
+    );
 
     elementos.forEach((el) => observer.observe(el));
 
     return () => observer.disconnect();
+  }, []);
+
+  useEffect(() => {
+    const prefiereMenosMovimiento = window.matchMedia(
+      "(prefers-reduced-motion: reduce)"
+    ).matches;
+    if (prefiereMenosMovimiento) return;
+
+    const intervalo = setInterval(() => {
+      setSlideActual((i) => (i + 1) % CARRUSEL_HERO.length);
+    }, 4500);
+
+    return () => clearInterval(intervalo);
   }, []);
 
   return (
@@ -69,7 +102,7 @@ export function HomePage() {
       <header className="home-nav">
         <div className="brand-mark">
           <div className="logo-dot">
-            <img src="/MELOPets_logo.png" alt="MELO Pets" />
+            <img src="/MELOPets_logo.png" alt="" />
           </div>
           <span>MELO Pets</span>
         </div>
@@ -83,19 +116,50 @@ export function HomePage() {
         </Link>
       </header>
 
-      <section className="home-hero">
-        <span className="eyebrow">Tienda y centro de cuidado de mascotas</span>
-        <h1>Todo lo que tu mascota necesita, en un solo lugar.</h1>
-        <p className="home-hero-sub">
-          Alimento, accesorios, estética y atención veterinaria — con un equipo que conoce a cada mascota por su nombre.
-        </p>
-        <div className="home-hero-actions">
-          <Link className="btn btn-primary" to="/login">
-            Iniciar sesión
-          </Link>
-          <a className="btn btn-ghost" href="#servicios">
-            Ver servicios
-          </a>
+      <section className="home-hero-wrap">
+        <div className="home-hero">
+          <span className="eyebrow">Tienda y centro de cuidado de mascotas</span>
+          <h1>Todo lo que tu mascota necesita, en un solo lugar.</h1>
+          <p className="home-hero-sub">
+            Alimento, accesorios, estética y atención veterinaria — con un equipo que conoce a cada mascota por su nombre.
+          </p>
+          <div className="home-hero-actions">
+            <Link className="btn btn-primary" to="/login">
+              Iniciar sesión
+            </Link>
+            <a className="btn btn-ghost" href="#servicios">
+              Ver servicios
+            </a>
+          </div>
+        </div>
+
+        <div className="home-hero-media">
+          {CARRUSEL_HERO.map((slide, idx) => (
+            <img
+              key={slide.src}
+              src={slide.src}
+              alt={slide.alt}
+              className={`hero-carousel-slide${idx === slideActual ? " is-active" : ""}`}
+            />
+          ))}
+
+          <span className="hero-carousel-tag">
+            {CARRUSEL_HERO[slideActual].etiqueta}
+          </span>
+
+          <div className="hero-carousel-dots" role="tablist" aria-label="Seleccionar imagen">
+            {CARRUSEL_HERO.map((slide, idx) => (
+              <button
+                key={slide.src}
+                type="button"
+                role="tab"
+                aria-selected={idx === slideActual}
+                aria-label={`Ver imagen ${idx + 1}: ${slide.etiqueta}`}
+                className={`hero-carousel-dot${idx === slideActual ? " is-active" : ""}`}
+                onClick={() => setSlideActual(idx)}
+              />
+            ))}
+          </div>
         </div>
       </section>
 
@@ -160,7 +224,9 @@ export function HomePage() {
 
       <footer className="home-footer">
         <div className="brand-mark">
-          <div className="logo-dot">M</div>
+          <div className="logo-dot">
+            <img src="/MELOPets_logo.png" alt="" />
+          </div>
           <span>MELO Pets</span>
         </div>
         <p>© 2026 MELO Pets</p>
