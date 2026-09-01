@@ -184,14 +184,15 @@ export function CatalogoPage() {
       }
 
       if (modal === "cliente") {
-        if (!form.nombre || !form.apellido) {
-          setFormError("Completa nombre y apellido.");
+        if (!form.nombre || !form.apellido || (!editandoId && !form.cedula)) {
+          setFormError(editandoId ? "Completa nombre y apellido." : "Completa nombre, apellido y cédula.");
           return;
         }
         if (editandoId) {
           const actualizado = await actualizarCliente(token, editandoId, {
             nombre: form.nombre,
             apellido: form.apellido,
+            cedula: form.cedula || undefined,
             telefono: form.telefono || undefined,
             email: form.email || undefined,
           });
@@ -200,6 +201,7 @@ export function CatalogoPage() {
           const nuevo = await crearCliente(token, {
             nombre: form.nombre,
             apellido: form.apellido,
+            cedula: form.cedula,
             telefono: form.telefono || undefined,
             email: form.email || undefined,
           });
@@ -474,6 +476,7 @@ export function CatalogoPage() {
                                   valoresIniciales: {
                                     nombre: c.nombre,
                                     apellido: c.apellido,
+                                    cedula: c.cedula || "",
                                     telefono: c.telefono || "",
                                     email: c.email || "",
                                   },
@@ -697,6 +700,15 @@ export function CatalogoPage() {
               )}
               {modal === "cliente" && (
                 <>
+                  <div className="field">
+                    <label>Cédula</label>
+                    <input
+                      className="input"
+                      placeholder="Ej. 8-888-8888"
+                      value={form.cedula || ""}
+                      onChange={(e) => actualizarForm("cedula", e.target.value)}
+                    />
+                  </div>
                   <div className="grid2">
                     <div className="field">
                       <label>Nombre</label>

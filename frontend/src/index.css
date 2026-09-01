@@ -651,3 +651,149 @@ tbody tr:hover { background: var(--surface-alt); }
   filter: blur(6px);
   pointer-events: none;
 }
+
+/* ---------------- Rediseño "Soft Elevated" — app interna ---------------- */
+
+.app-shell {
+  --app-shadow: 0 10px 28px -10px rgba(20, 38, 29, 0.14), 0 2px 8px -2px rgba(20, 38, 29, 0.08);
+  --app-shadow-hover: 0 18px 40px -12px rgba(20, 38, 29, 0.20), 0 4px 12px -4px rgba(20, 38, 29, 0.10);
+}
+:root:not([data-theme="light"]) .app-shell,
+:root[data-theme="dark"] .app-shell {
+  --app-shadow: 0 10px 28px -10px rgba(0, 0, 0, 0.45), 0 2px 8px -2px rgba(0, 0, 0, 0.3);
+  --app-shadow-hover: 0 18px 40px -12px rgba(0, 0, 0, 0.55), 0 4px 12px -4px rgba(0, 0, 0, 0.35);
+}
+
+/* Botones tipo pill, igual que en el sitio público */
+.app-shell .btn-primary,
+.app-shell .btn-ghost {
+  border-radius: 999px;
+}
+.app-shell .btn-primary {
+  box-shadow: 0 10px 24px -8px color-mix(in srgb, var(--primary) 45%, transparent);
+  transition: background-color 0.15s ease, transform 0.15s ease, box-shadow 0.15s ease;
+}
+.app-shell .btn-primary:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 14px 30px -8px color-mix(in srgb, var(--primary) 50%, transparent);
+}
+
+/* Cards y contenedores con elevación suave */
+.app-shell .card,
+.app-shell .table-wrap {
+  border-radius: 14px;
+  box-shadow: var(--app-shadow);
+}
+
+/* Tiles de producto/servicio en Caja: hover-lift */
+.app-shell .item-card {
+  border-radius: 14px;
+  transition: transform 0.18s ease, box-shadow 0.18s ease, border-color 0.15s ease, background-color 0.15s ease;
+}
+.app-shell .item-card:hover {
+  transform: translateY(-2px);
+  box-shadow: var(--app-shadow);
+}
+
+/* Pestaña de categoría activa (Caja) con glow suave */
+.app-shell .item-tab.active {
+  box-shadow: 0 6px 16px -6px color-mix(in srgb, var(--primary) 55%, transparent);
+}
+
+/* Inputs y selects con profundidad sutil */
+.app-shell .input,
+.app-shell .select {
+  box-shadow: var(--shadow-1);
+}
+
+/* Botones de ícono redondeados, con glow al pasar el mouse */
+.app-shell .icon-btn {
+  border-radius: 999px;
+}
+.app-shell .icon-btn:hover {
+  box-shadow: 0 4px 12px -4px color-mix(in srgb, var(--primary) 40%, transparent);
+}
+
+/* Modal con elevación y esquinas más suaves */
+.app-shell .modal-card {
+  border-radius: 18px;
+  box-shadow: var(--app-shadow-hover);
+}
+
+/* Toast de venta exitosa, mismo lenguaje visual */
+.app-shell .receipt-toast {
+  box-shadow: var(--app-shadow-hover);
+}
+
+/* Topbar flotante en vez de solo línea divisoria */
+.app-shell .topbar {
+  box-shadow: 0 4px 20px -12px rgba(20, 38, 29, 0.15);
+}
+:root:not([data-theme="light"]) .app-shell .topbar,
+:root[data-theme="dark"] .app-shell .topbar {
+  box-shadow: 0 4px 20px -12px rgba(0, 0, 0, 0.4);
+}
+
+/* Sidebar: links de navegación tipo pill */
+.sidebar-link {
+  border-radius: 999px;
+}
+.sidebar-link.active {
+  box-shadow: 0 6px 16px -6px color-mix(in srgb, var(--primary) 65%, transparent);
+}
+
+/* ---------------- Buscador de cliente por cédula (Caja) ---------------- */
+
+.cliente-buscador {
+  position: relative;
+}
+.cliente-elegido {
+  margin-top: 6px;
+  font-size: 12.5px;
+  color: var(--ink-soft);
+}
+.cliente-resultados {
+  position: absolute;
+  top: calc(100% + 4px);
+  left: 0;
+  right: 0;
+  background: var(--surface-card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  box-shadow: var(--shadow-2);
+  max-height: 220px;
+  overflow-y: auto;
+  z-index: 20;
+}
+.cliente-resultado-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  width: 100%;
+  padding: 9px 12px;
+  background: none;
+  border: none;
+  border-bottom: 1px solid var(--border);
+  text-align: left;
+  cursor: pointer;
+  font-size: 13px;
+  color: var(--ink);
+}
+.cliente-resultado-item:last-child {
+  border-bottom: none;
+}
+.cliente-resultado-item:hover {
+  background: var(--surface-alt);
+}
+.cliente-resultado-item .cedula {
+  font-family: var(--font-mono);
+  color: var(--ink-faint);
+  font-size: 11.5px;
+  flex: none;
+}
+.cliente-resultado-vacio {
+  padding: 10px 12px;
+  font-size: 12.5px;
+  color: var(--ink-faint);
+}

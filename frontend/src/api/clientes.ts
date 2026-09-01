@@ -4,6 +4,7 @@ export interface Cliente {
   id_cliente: number;
   nombre: string;
   apellido: string;
+  cedula: string | null;
   telefono: string | null;
   email: string | null;
   direccion: string | null;
@@ -14,6 +15,7 @@ export interface Cliente {
 export interface CrearClienteInput {
   nombre: string;
   apellido: string;
+  cedula: string;
   telefono?: string;
   email?: string;
   direccion?: string;

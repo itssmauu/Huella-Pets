@@ -5,6 +5,7 @@ export interface Cliente {
   id_cliente: number;
   nombre: string;
   apellido: string;
+  cedula: string | null;
   telefono: string | null;
   email: string | null;
   direccion: string | null;
@@ -14,10 +15,11 @@ export interface Cliente {
 
 interface ListarOpciones {
   q?: string;
+  cedula?: string;
   soloActivos?: boolean;
 }
 
-const SELECT_CLIENTE = `SELECT id_cliente, nombre, apellido, telefono, email, direccion, estado, fecha_registro FROM clientes`;
+const SELECT_CLIENTE = `SELECT id_cliente, nombre, apellido, cedula, telefono, email, direccion, estado, fecha_registro FROM clientes`;
 
 export async function listar(opciones: ListarOpciones): Promise<Cliente[]> {
   const condiciones: string[] = [];
@@ -28,6 +30,10 @@ export async function listar(opciones: ListarOpciones): Promise<Cliente[]> {
     condiciones.push(
       `(nombre ILIKE $${params.length} OR apellido ILIKE $${params.length} OR telefono ILIKE $${params.length})`
     );
+  }
+    if (opciones.cedula) {
+    params.push(`%${opciones.cedula}%`);
+    condiciones.push(`cedula ILIKE $${params.length}`);
   }
   if (opciones.soloActivos) {
     condiciones.push("estado = TRUE");
@@ -42,6 +48,7 @@ export async function listar(opciones: ListarOpciones): Promise<Cliente[]> {
 interface CrearClienteInput {
   nombre: string;
   apellido: string;
+  cedula: string;
   telefono?: string;
   email?: string;
   direccion?: string;
@@ -49,10 +56,10 @@ interface CrearClienteInput {
 
 export async function crear(input: CrearClienteInput): Promise<Cliente> {
   const { rows } = await query<Cliente>(
-    `INSERT INTO clientes (nombre, apellido, telefono, email, direccion)
-     VALUES ($1, $2, $3, $4, $5)
-     RETURNING id_cliente, nombre, apellido, telefono, email, direccion, estado, fecha_registro`,
-    [input.nombre, input.apellido, input.telefono ?? null, input.email ?? null, input.direccion ?? null]
+    `INSERT INTO clientes (nombre, apellido, cedula, telefono, email, direccion)
+     VALUES ($1, $2, $3, $4, $5, $6)
+     RETURNING id_cliente, nombre, apellido, cedula, telefono, email, direccion, estado, fecha_registro`,
+    [input.nombre, input.apellido, input.cedula, input.telefono ?? null, input.email ?? null, input.direccion ?? null]
   );
   return rows[0];
 }
@@ -62,6 +69,7 @@ export async function actualizar(
   cambios: {
     nombre?: string;
     apellido?: string;
+    cedula?: string;
     telefono?: string;
     email?: string;
     direccion?: string;
@@ -72,15 +80,17 @@ export async function actualizar(
     `UPDATE clientes
         SET nombre = COALESCE($1, nombre),
             apellido = COALESCE($2, apellido),
-            telefono = COALESCE($3, telefono),
-            email = COALESCE($4, email),
-            direccion = COALESCE($5, direccion),
-            estado = COALESCE($6, estado)
-      WHERE id_cliente = $7
-      RETURNING id_cliente, nombre, apellido, telefono, email, direccion, estado, fecha_registro`,
+            cedula = COALESCE($3, cedula),
+            telefono = COALESCE($4, telefono),
+            email = COALESCE($5, email),
+            direccion = COALESCE($6, direccion),
+            estado = COALESCE($7, estado)
+      WHERE id_cliente = $8
+      RETURNING id_cliente, nombre, apellido, cedula, telefono, email, direccion, estado, fecha_registro`,
     [
       cambios.nombre ?? null,
       cambios.apellido ?? null,
+      cambios.cedula ?? null,
       cambios.telefono ?? null,
       cambios.email ?? null,
       cambios.direccion ?? null,

@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useAuth } from "../context/AuthContext";
 import { ApiError } from "../api/client";
 import { listarProductos, type Producto } from "../api/productos";
@@ -33,6 +33,10 @@ export function CajaPage() {
   const [cart, setCart] = useState<CartRow[]>([]);
 
   const [clienteSel, setClienteSel] = useState<number | null>(null);
+  const [busquedaCliente, setBusquedaCliente] = useState("");
+  const [mostrarResultadosCliente, setMostrarResultadosCliente] = useState(false);
+  const clienteBuscadorRef = useRef<HTMLDivElement>(null);
+
   const [mascotas, setMascotas] = useState<Mascota[]>([]);
   const [mascotaSel, setMascotaSel] = useState<number | null>(null);
   const [cargandoMascotas, setCargandoMascotas] = useState(false);
@@ -52,7 +56,6 @@ export function CajaPage() {
         setProductos(p);
         setServicios(s);
         setClientes(c);
-        if (c.length > 0) setClienteSel(c[0].id_cliente);
         setErrorCarga(null);
       })
       .catch((err) => {
@@ -94,11 +97,29 @@ export function CajaPage() {
     };
   }, [token, clienteSel]);
 
+  useEffect(() => {
+    function alClicFuera(e: MouseEvent) {
+      if (clienteBuscadorRef.current && !clienteBuscadorRef.current.contains(e.target as Node)) {
+        setMostrarResultadosCliente(false);
+      }
+    }
+    document.addEventListener("mousedown", alClicFuera);
+    return () => document.removeEventListener("mousedown", alClicFuera);
+  }, []);
+
   if (!token) return null;
 
   const query = search.trim().toLowerCase();
   const productosFiltrados = productos.filter((p) => p.estado && p.nombre.toLowerCase().includes(query));
   const serviciosFiltrados = servicios.filter((s) => s.estado && s.nombre.toLowerCase().includes(query));
+
+  const clienteActual = clientes.find((c) => c.id_cliente === clienteSel) ?? null;
+  const cedulaBuscada = busquedaCliente.trim();
+  const resultadosCliente = cedulaBuscada
+    ? clientes
+        .filter((c) => c.cedula && c.cedula.toLowerCase().includes(cedulaBuscada.toLowerCase()))
+        .slice(0, 6)
+    : [];
 
   const hasServicio = cart.some((r) => r.tipo === "servicio");
   const subtotal = cart.reduce((s, r) => s + r.precio * r.cantidad, 0);
@@ -135,8 +156,10 @@ export function CajaPage() {
     setCart((prev) => prev.filter((_, i) => i !== idx));
   }
 
-  function handleCambiarCliente(idCliente: number) {
-    setClienteSel(idCliente);
+  function seleccionarCliente(c: Cliente) {
+    setClienteSel(c.id_cliente);
+    setBusquedaCliente("");
+    setMostrarResultadosCliente(false);
   }
 
   async function handleCobrar() {
@@ -168,6 +191,7 @@ export function CajaPage() {
       setToast({ visible: true, factura: venta.numero_factura, total: money(venta.total) });
       setTimeout(() => setToast((t) => ({ ...t, visible: false })), 3200);
       setCart([]);
+      setClienteSel(null);
 
       // Refresca productos para reflejar el stock ya descontado por la venta.
       const productosActualizados = await listarProductos(token);
@@ -286,21 +310,49 @@ export function CajaPage() {
           </div>
 
           <div className="cart-selects">
-            <div className="field">
-              <label htmlFor="sel-cliente">Cliente</label>
-              <select
-                className="select"
-                id="sel-cliente"
-                value={clienteSel ?? ""}
-                onChange={(e) => handleCambiarCliente(Number(e.target.value))}
-              >
-                {clientes.map((c) => (
-                  <option key={c.id_cliente} value={c.id_cliente}>
-                    {c.nombre} {c.apellido}
-                  </option>
-                ))}
-              </select>
+            <div className="field cliente-buscador" ref={clienteBuscadorRef}>
+              <label htmlFor="buscar-cliente">Cliente (cédula)</label>
+              <input
+                className="input"
+                id="buscar-cliente"
+                type="text"
+                placeholder="Escribe la cédula…"
+                value={busquedaCliente}
+                onChange={(e) => {
+                  setBusquedaCliente(e.target.value);
+                  setMostrarResultadosCliente(true);
+                }}
+                onFocus={() => setMostrarResultadosCliente(true)}
+                autoComplete="off"
+              />
+
+              {clienteActual && (
+                <div className="cliente-elegido">
+                  Cliente: <strong>{clienteActual.nombre} {clienteActual.apellido}</strong>
+                  {clienteActual.cedula ? ` · ${clienteActual.cedula}` : ""}
+                </div>
+              )}
+
+              {mostrarResultadosCliente && cedulaBuscada && (
+                <div className="cliente-resultados">
+                  {resultadosCliente.length === 0 && (
+                    <div className="cliente-resultado-vacio">Sin coincidencias</div>
+                  )}
+                  {resultadosCliente.map((c) => (
+                    <button
+                      type="button"
+                      key={c.id_cliente}
+                      className="cliente-resultado-item"
+                      onClick={() => seleccionarCliente(c)}
+                    >
+                      <span className="nombre">{c.nombre} {c.apellido}</span>
+                      <span className="cedula">{c.cedula}</span>
+                    </button>
+                  ))}
+                </div>
+              )}
             </div>
+
             {hasServicio && (
               <div className="field">
                 <label htmlFor="sel-mascota">Mascota</label>
