@@ -1,4 +1,4 @@
-import { Fragment, useEffect, useState } from "react";
+import { useEffect, useState } from "react";
 import { useAuth } from "../context/AuthContext";
 import { ApiError } from "../api/client";
 import { listarProductos, crearProducto, actualizarProducto, ajustarStockProducto, type Producto } from "../api/productos";
@@ -6,11 +6,17 @@ import { listarClientes, crearCliente, actualizarCliente, type Cliente } from ".
 import { listarServicios, crearServicio, actualizarServicio, type Servicio } from "../api/servicios";
 import { listarCategorias, type Categoria } from "../api/categorias";
 import { listarTiposServicio, type TipoServicio } from "../api/tiposServicio";
-import { listarMascotasPorCliente, crearMascota, actualizarMascota, type Mascota } from "../api/mascotas";
-
+import { listarMascotas, crearMascota, actualizarMascota, type Mascota } from "../api/mascotas";
+import { Icon } from "../components/caja/CajaBits";
+import { ItemArt, PetArt } from "../components/caja/ItemArt";
 
 type CatalogTab = "productos" | "clientes" | "servicios";
 type ModalKind = "producto" | "cliente" | "servicio" | "mascota" | null;
+type FiltroProducto = "todos" | "bajo" | "agotado" | "inactivo";
+type FiltroCliente = "todos" | "con" | "sin";
+type FiltroServicio = "todos" | "activos" | "inactivos";
+
+const ESPECIES = ["Perro", "Gato", "Ave", "Conejo"];
 
 function money(n: string | number) {
   return `$${Number(n).toFixed(2)}`;
@@ -25,10 +31,71 @@ function initials(nombre: string) {
     .toUpperCase();
 }
 
-function stockBadge(stock: number, minimo: number) {
-  if (stock <= 0) return <span className="badge badge-danger">Agotado</span>;
-  if (stock < minimo) return <span className="badge badge-warning">Bajo</span>;
-  return <span className="badge badge-success">Suficiente</span>;
+function normalizar(texto: string) {
+  return texto
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[̀-ͯ]/g, "");
+}
+
+function estadoStock(p: Producto): "agotado" | "bajo" | "ok" {
+  if (p.stock <= 0) return "agotado";
+  if (p.stock < p.stock_minimo) return "bajo";
+  return "ok";
+}
+
+function edad(fecha: string | null) {
+  if (!fecha) return null;
+  const nac = new Date(fecha);
+  const hoy = new Date();
+  let meses = (hoy.getFullYear() - nac.getFullYear()) * 12 + (hoy.getMonth() - nac.getMonth());
+  if (hoy.getDate() < nac.getDate()) meses -= 1;
+  if (meses < 1) return "recién nacido";
+  if (meses < 12) return `${meses} ${meses === 1 ? "mes" : "meses"}`;
+  const anios = Math.floor(meses / 12);
+  return `${anios} ${anios === 1 ? "año" : "años"}`;
+}
+
+const FORMATO_ALTA = new Intl.DateTimeFormat("es-PA", { month: "short", year: "numeric" });
+
+// Tonos para los avatares de clientes, de la misma paleta que las ilustraciones
+const TONOS_AVATAR = ["#ffe7a3", "#cde8f6", "#cfefe2", "#ffd8c9", "#e5defa", "#fadbe7"];
+
+interface FiltroChipsProps<T extends string> {
+  opciones: { valor: T; label: string; total: number; tono?: "warning" | "danger" | "muted" }[];
+  activo: T;
+  onChange: (v: T) => void;
+  label: string;
+}
+
+function FiltroChips<T extends string>({ opciones, activo, onChange, label }: FiltroChipsProps<T>) {
+  return (
+    <div className="filter-chips" role="group" aria-label={label}>
+      {opciones.map((o) => (
+        <button
+          key={o.valor}
+          type="button"
+          className="filter-chip"
+          data-tono={o.tono}
+          aria-pressed={activo === o.valor}
+          onClick={() => onChange(o.valor)}
+        >
+          {o.label}
+          <span className="filter-count">{o.total}</span>
+        </button>
+      ))}
+    </div>
+  );
+}
+
+function Buscador({ valor, onChange, placeholder }: { valor: string; onChange: (v: string) => void; placeholder: string }) {
+  return (
+    <label className="pos-search catalog-search">
+      <span className="sr-only">{placeholder}</span>
+      {Icon.search}
+      <input className="input" type="search" placeholder={placeholder} value={valor} onChange={(e) => onChange(e.target.value)} />
+    </label>
+  );
 }
 
 export function CatalogoPage() {
@@ -39,19 +106,20 @@ export function CatalogoPage() {
   const [buscarProducto, setBuscarProducto] = useState("");
   const [buscarCliente, setBuscarCliente] = useState("");
   const [buscarServicio, setBuscarServicio] = useState("");
+  const [filtroProducto, setFiltroProducto] = useState<FiltroProducto>("todos");
+  const [categoriaFiltro, setCategoriaFiltro] = useState<string>("");
+  const [filtroCliente, setFiltroCliente] = useState<FiltroCliente>("todos");
+  const [filtroServicio, setFiltroServicio] = useState<FiltroServicio>("todos");
 
   const [productos, setProductos] = useState<Producto[]>([]);
   const [clientes, setClientes] = useState<Cliente[]>([]);
   const [servicios, setServicios] = useState<Servicio[]>([]);
+  const [mascotas, setMascotas] = useState<Mascota[]>([]);
   const [categorias, setCategorias] = useState<Categoria[]>([]);
   const [tiposServicio, setTiposServicio] = useState<TipoServicio[]>([]);
 
   const [cargando, setCargando] = useState(true);
   const [errorCarga, setErrorCarga] = useState<string | null>(null);
-
-  const [mascotasPorCliente, setMascotasPorCliente] = useState<Record<number, Mascota[]>>({});
-  const [clienteExpandido, setClienteExpandido] = useState<number | null>(null);
-  const [cargandoMascotas, setCargandoMascotas] = useState(false);
 
   const [modal, setModal] = useState<ModalKind>(null);
   const [modalClienteId, setModalClienteId] = useState<number | null>(null);
@@ -71,14 +139,16 @@ export function CatalogoPage() {
       listarServicios(token, undefined, false),
       listarCategorias(token),
       listarTiposServicio(token),
+      listarMascotas(token),
     ])
-      .then(([p, c, s, cat, ts]) => {
+      .then(([p, c, s, cat, ts, m]) => {
         if (cancelado) return;
         setProductos(p);
         setClientes(c);
         setServicios(s);
         setCategorias(cat);
         setTiposServicio(ts);
+        setMascotas(m);
         setErrorCarga(null);
       })
       .catch((err) => {
@@ -95,15 +165,64 @@ export function CatalogoPage() {
 
   if (!token) return null;
 
-  const productosFiltrados = productos.filter((p) =>
-    p.nombre.toLowerCase().includes(buscarProducto.trim().toLowerCase())
+  // ---------- Productos ----------
+  const qProducto = normalizar(buscarProducto.trim());
+  const productosBuscados = productos.filter(
+    (p) =>
+      (!qProducto || normalizar(`${p.nombre} ${p.categoria}`).includes(qProducto)) &&
+      (!categoriaFiltro || p.categoria === categoriaFiltro)
   );
-  const clientesFiltrados = clientes.filter((c) =>
-    `${c.nombre} ${c.apellido}`.toLowerCase().includes(buscarCliente.trim().toLowerCase())
-  );
-  const serviciosFiltrados = servicios.filter((s) =>
-    s.nombre.toLowerCase().includes(buscarServicio.trim().toLowerCase())
-  );
+  const conteoProductos = {
+    todos: productosBuscados.length,
+    bajo: productosBuscados.filter((p) => p.estado && estadoStock(p) === "bajo").length,
+    agotado: productosBuscados.filter((p) => p.estado && estadoStock(p) === "agotado").length,
+    inactivo: productosBuscados.filter((p) => !p.estado).length,
+  };
+  const productosFiltrados = productosBuscados.filter((p) => {
+    if (filtroProducto === "bajo") return p.estado && estadoStock(p) === "bajo";
+    if (filtroProducto === "agotado") return p.estado && estadoStock(p) === "agotado";
+    if (filtroProducto === "inactivo") return !p.estado;
+    return true;
+  });
+  const categoriasUsadas = [...new Set(productos.map((p) => p.categoria))].sort();
+
+  // ---------- Clientes y mascotas ----------
+  const mascotasDe = (idCliente: number) => mascotas.filter((m) => m.id_cliente === idCliente);
+  const qCliente = normalizar(buscarCliente.trim());
+  const clientesBuscados = clientes.filter((c) => {
+    if (!qCliente) return true;
+    const nombresMascotas = mascotasDe(c.id_cliente)
+      .map((m) => m.nombre)
+      .join(" ");
+    return normalizar(`${c.nombre} ${c.apellido} ${c.cedula ?? ""} ${c.telefono ?? ""} ${nombresMascotas}`).includes(qCliente);
+  });
+  const conteoClientes = {
+    todos: clientesBuscados.length,
+    con: clientesBuscados.filter((c) => mascotasDe(c.id_cliente).length > 0).length,
+    sin: clientesBuscados.filter((c) => mascotasDe(c.id_cliente).length === 0).length,
+  };
+  const clientesFiltrados = clientesBuscados.filter((c) => {
+    const n = mascotasDe(c.id_cliente).length;
+    if (filtroCliente === "con") return n > 0;
+    if (filtroCliente === "sin") return n === 0;
+    return true;
+  });
+
+  // ---------- Servicios ----------
+  const qServicio = normalizar(buscarServicio.trim());
+  const serviciosBuscados = servicios.filter((s) => !qServicio || normalizar(`${s.nombre} ${s.tipo_servicio}`).includes(qServicio));
+  const conteoServicios = {
+    todos: serviciosBuscados.length,
+    activos: serviciosBuscados.filter((s) => s.estado).length,
+    inactivos: serviciosBuscados.filter((s) => !s.estado).length,
+  };
+  const serviciosFiltrados = serviciosBuscados.filter((s) => {
+    if (filtroServicio === "activos") return s.estado;
+    if (filtroServicio === "inactivos") return !s.estado;
+    return true;
+  });
+
+  const clienteDelModal = clientes.find((c) => c.id_cliente === modalClienteId) ?? null;
 
   function abrirModal(
     kind: ModalKind,
@@ -128,25 +247,6 @@ export function CatalogoPage() {
 
   function actualizarForm(campo: string, valor: string) {
     setForm((prev) => ({ ...prev, [campo]: valor }));
-  }
-
-  async function alternarMascotas(idCliente: number) {
-    if (clienteExpandido === idCliente) {
-      setClienteExpandido(null);
-      return;
-    }
-    setClienteExpandido(idCliente);
-    if (!mascotasPorCliente[idCliente] && token) {
-      setCargandoMascotas(true);
-      try {
-        const lista = await listarMascotasPorCliente(token, idCliente);
-        setMascotasPorCliente((prev) => ({ ...prev, [idCliente]: lista }));
-      } catch {
-        // Si falla, el usuario puede cerrar y volver a abrir para reintentar.
-      } finally {
-        setCargandoMascotas(false);
-      }
-    }
   }
 
   async function handleGuardar() {
@@ -236,29 +336,25 @@ export function CatalogoPage() {
           setFormError("Completa nombre y especie.");
           return;
         }
+        const sexo = form.sexo === "M" || form.sexo === "H" ? form.sexo : undefined;
         if (editandoId) {
           const actualizada = await actualizarMascota(token, editandoId, {
             nombre: form.nombre,
             especie: form.especie,
             raza: form.raza || undefined,
+            sexo,
           });
-          setMascotasPorCliente((prev) => ({
-            ...prev,
-            [modalClienteId]: (prev[modalClienteId] ?? []).map((m) => (m.id_mascota === editandoId ? actualizada : m)),
-          }));
+          setMascotas((prev) => prev.map((m) => (m.id_mascota === editandoId ? actualizada : m)));
         } else {
           const nueva = await crearMascota(token, {
             idCliente: modalClienteId,
             nombre: form.nombre,
             especie: form.especie,
             raza: form.raza || undefined,
+            sexo,
           });
-          setMascotasPorCliente((prev) => ({
-            ...prev,
-            [modalClienteId]: [...(prev[modalClienteId] ?? []), nueva],
-          }));
+          setMascotas((prev) => [...prev, nueva]);
         }
-        setClienteExpandido(modalClienteId);
       }
 
       cerrarModal();
@@ -289,355 +385,410 @@ export function CatalogoPage() {
     }
   }
 
+  const TABS: { valor: CatalogTab; label: string; total: number }[] = [
+    { valor: "productos", label: "Productos", total: productos.length },
+    { valor: "clientes", label: "Clientes y mascotas", total: clientes.length },
+    { valor: "servicios", label: "Servicios", total: servicios.length },
+  ];
+
   return (
     <>
-      <div className="panel-head">
-        <div>
-          <h1>Catálogo</h1>
-          <p className="sub">Productos, clientes, mascotas y servicios</p>
-        </div>
-      </div>
-
       {errorCarga && <div className="alert">{errorCarga}</div>}
 
-      <div className="catalog-tabs">
-        <button className={"catalog-tab" + (tab === "productos" ? " active" : "")} type="button" onClick={() => setTab("productos")}>
-          Productos
-        </button>
-        <button className={"catalog-tab" + (tab === "clientes" ? " active" : "")} type="button" onClick={() => setTab("clientes")}>
-          Clientes &amp; mascotas
-        </button>
-        <button className={"catalog-tab" + (tab === "servicios" ? " active" : "")} type="button" onClick={() => setTab("servicios")}>
-          Servicios
-        </button>
+      <div className="catalog-tabs" role="tablist" aria-label="Secciones del catálogo">
+        {TABS.map((t) => (
+          <button
+            key={t.valor}
+            role="tab"
+            aria-selected={tab === t.valor}
+            className={"catalog-tab" + (tab === t.valor ? " active" : "")}
+            type="button"
+            onClick={() => setTab(t.valor)}
+          >
+            {t.label}
+            {!cargando && <span className="tab-count">{t.total}</span>}
+          </button>
+        ))}
       </div>
 
       {cargando ? (
-        <p className="sub">Cargando catálogo…</p>
+        <div className="catalog-grid" aria-busy="true" aria-label="Cargando catálogo">
+          {Array.from({ length: 6 }, (_, i) => (
+            <div key={i} className="card skeleton" style={{ minHeight: 180 }} />
+          ))}
+        </div>
       ) : (
-        <>
+        <div className="catalog-panel" key={tab}>
+          {/* ======================= PRODUCTOS ======================= */}
           {tab === "productos" && (
-            <div>
-              <div className="toolbar" style={{ marginBottom: 14 }}>
-                <input
-                  className="input"
-                  type="text"
-                  placeholder="Buscar producto…"
-                  value={buscarProducto}
-                  onChange={(e) => setBuscarProducto(e.target.value)}
-                />
+            <>
+              <div className="catalog-toolbar">
+                <Buscador valor={buscarProducto} onChange={setBuscarProducto} placeholder="Buscar producto o categoría" />
+                <select
+                  className="select catalog-select"
+                  value={categoriaFiltro}
+                  onChange={(e) => setCategoriaFiltro(e.target.value)}
+                  aria-label="Filtrar por categoría"
+                >
+                  <option value="">Todas las categorías</option>
+                  {categoriasUsadas.map((c) => (
+                    <option key={c} value={c}>
+                      {c}
+                    </option>
+                  ))}
+                </select>
                 {esGerente && (
                   <button className="btn btn-primary" type="button" onClick={() => abrirModal("producto")}>
-                    + Nuevo producto
+                    {Icon.plus}
+                    Nuevo producto
                   </button>
                 )}
               </div>
-              <div className="table-wrap">
-                <table>
-                  <thead>
-                    <tr>
-                      <th>Producto</th>
-                      <th>Categoría</th>
-                      <th>Precio</th>
-                      <th>Stock</th>
-                      {esGerente && <th></th>}
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {productosFiltrados.map((p) => (
-                      <tr key={p.id_producto}>
-                        <td className="row-name">
-                          {p.nombre}
-                          {!p.estado && (
-                            <span className="badge badge-danger" style={{ marginLeft: 8 }}>
-                              Inactivo
-                            </span>
-                          )}
-                        </td>
-                        <td>{p.categoria}</td>
-                        <td className="num">{money(p.precio)}</td>
-                        <td>
-                          <div className="stock-cell">
-                            <span className="num">{p.stock}</span>
-                            {stockBadge(p.stock, p.stock_minimo)}
-                          </div>
-                        </td>
-                        {esGerente && (
-                          <td className="actions-cell">
-                            <button
-                              className="icon-btn"
-                              type="button"
-                              aria-label="Editar"
-                              onClick={() =>
-                                abrirModal("producto", {
-                                  editId: p.id_producto,
-                                  stockOriginal: p.stock,
-                                  valoresIniciales: {
-                                    nombre: p.nombre,
-                                    idCategoria: String(p.id_categoria),
-                                    precio: p.precio,
-                                    stock: String(p.stock),
-                                    stockMinimo: String(p.stock_minimo),
-                                  },
-                                })
-                              }
-                            >
-                              ✎
-                            </button>
-                            <button
-                              className="icon-btn"
-                              type="button"
-                              title={p.estado ? "Desactivar producto" : "Activar producto"}
-                              aria-label={p.estado ? "Desactivar" : "Activar"}
-                              onClick={() => desactivarProducto(p)}
-                            >
-                              ⏻
-                            </button>
-                          </td>
+              <FiltroChips
+                label="Filtrar productos por estado"
+                activo={filtroProducto}
+                onChange={setFiltroProducto}
+                opciones={[
+                  { valor: "todos", label: "Todos", total: conteoProductos.todos },
+                  { valor: "bajo", label: "Stock bajo", total: conteoProductos.bajo, tono: "warning" },
+                  { valor: "agotado", label: "Agotados", total: conteoProductos.agotado, tono: "danger" },
+                  { valor: "inactivo", label: "Inactivos", total: conteoProductos.inactivo, tono: "muted" },
+                ]}
+              />
+
+              <div className="catalog-grid">
+                {productosFiltrados.length === 0 && <p className="catalog-empty">No hay productos con estos filtros.</p>}
+                {productosFiltrados.map((p, i) => {
+                  const estado = estadoStock(p);
+                  const referencia = Math.max(p.stock_minimo * 3, p.stock, 1);
+                  return (
+                    <article className="cat-card" key={p.id_producto} data-inactive={!p.estado} style={{ ["--i" as string]: i }}>
+                      <div className="cat-card-top">
+                        <ItemArt kind="producto" categoria={p.categoria} nombre={p.nombre} />
+                        {!p.estado ? (
+                          <span className="badge badge-muted">Inactivo</span>
+                        ) : estado === "agotado" ? (
+                          <span className="badge badge-danger">Agotado</span>
+                        ) : estado === "bajo" ? (
+                          <span className="badge badge-warning">Stock bajo</span>
+                        ) : (
+                          <span className="badge badge-success">Disponible</span>
                         )}
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
+                      </div>
+                      <div className="cat-card-title">
+                        <h3 className="cat-card-name">{p.nombre}</h3>
+                        <p className="cat-card-meta">{p.categoria}</p>
+                      </div>
+                      <div className="stock-meter" data-estado={estado} aria-hidden="true">
+                        <span style={{ transform: `scaleX(${Math.min(1, p.stock / referencia)})` }} />
+                        <i style={{ left: `${Math.min(100, (p.stock_minimo / referencia) * 100)}%` }} />
+                      </div>
+                      <div className="cat-card-foot">
+                        <span className="cat-card-price">{money(p.precio)}</span>
+                        <span className="cat-card-stock">
+                          <b>{p.stock}</b> en stock, mín. {p.stock_minimo}
+                        </span>
+                      </div>
+                      {esGerente && (
+                        <div className="cat-card-actions">
+                          <button
+                            className="btn btn-ghost btn-sm"
+                            type="button"
+                            onClick={() =>
+                              abrirModal("producto", {
+                                editId: p.id_producto,
+                                stockOriginal: p.stock,
+                                valoresIniciales: {
+                                  nombre: p.nombre,
+                                  idCategoria: String(p.id_categoria),
+                                  precio: p.precio,
+                                  stock: String(p.stock),
+                                  stockMinimo: String(p.stock_minimo),
+                                },
+                              })
+                            }
+                          >
+                            {Icon.pencil}
+                            Editar
+                          </button>
+                          <button
+                            className="icon-btn"
+                            type="button"
+                            title={p.estado ? "Desactivar producto" : "Activar producto"}
+                            aria-label={p.estado ? `Desactivar ${p.nombre}` : `Activar ${p.nombre}`}
+                            data-on={p.estado}
+                            onClick={() => desactivarProducto(p)}
+                          >
+                            {Icon.power}
+                          </button>
+                        </div>
+                      )}
+                    </article>
+                  );
+                })}
               </div>
-            </div>
+            </>
           )}
 
+          {/* ======================= CLIENTES ======================= */}
           {tab === "clientes" && (
-            <div>
-              <div className="toolbar" style={{ marginBottom: 14 }}>
-                <input
-                  className="input"
-                  type="text"
-                  placeholder="Buscar cliente…"
-                  value={buscarCliente}
-                  onChange={(e) => setBuscarCliente(e.target.value)}
+            <>
+              <div className="catalog-toolbar">
+                <Buscador
+                  valor={buscarCliente}
+                  onChange={setBuscarCliente}
+                  placeholder="Buscar por nombre, cédula, teléfono o mascota"
                 />
                 <button className="btn btn-primary" type="button" onClick={() => abrirModal("cliente")}>
-                  + Nuevo cliente
+                  {Icon.plus}
+                  Nuevo cliente
                 </button>
               </div>
-              <div className="table-wrap">
-                <table>
-                  <thead>
-                    <tr>
-                      <th>Cliente</th>
-                      <th>Teléfono</th>
-                      <th>Mascotas</th>
-                      <th></th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {clientesFiltrados.map((c) => (
-                      <Fragment key={c.id_cliente}>
-                        <tr>
-                          <td>
-                            <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-                              <span className="avatar-sm">{initials(`${c.nombre} ${c.apellido}`)}</span>
-                              <span className="row-name">
-                                {c.nombre} {c.apellido}
-                              </span>
-                            </div>
-                          </td>
-                          <td className="num">{c.telefono || "—"}</td>
-                          <td>
-                            <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
-                              <button
-                                className="icon-btn"
-                                type="button"
-                                title={clienteExpandido === c.id_cliente ? "Ocultar mascotas" : "Ver mascotas"}
-                                aria-label={clienteExpandido === c.id_cliente ? "Ocultar mascotas" : "Ver mascotas"}
-                                onClick={() => alternarMascotas(c.id_cliente)}
-                              >
-                                🐾
-                              </button>
-                              {mascotasPorCliente[c.id_cliente] && (
-                                <span className="badge">{mascotasPorCliente[c.id_cliente].length}</span>
-                              )}
-                              <button
-                                className="icon-btn"
-                                type="button"
-                                title="Agregar mascota"
-                                aria-label="Agregar mascota"
-                                onClick={() => abrirModal("mascota", { clienteId: c.id_cliente })}
-                              >
-                                +
-                              </button>
-                            </div>
-                          </td>
-                          <td className="actions-cell">
-                            <button
-                              className="icon-btn"
-                              type="button"
-                              aria-label="Editar"
-                              onClick={() =>
-                                abrirModal("cliente", {
-                                  editId: c.id_cliente,
-                                  valoresIniciales: {
-                                    nombre: c.nombre,
-                                    apellido: c.apellido,
-                                    cedula: c.cedula || "",
-                                    telefono: c.telefono || "",
-                                    email: c.email || "",
-                                  },
-                                })
-                              }
-                            >
-                              ✎
-                            </button>
-                          </td>
-                        </tr>
-                        {clienteExpandido === c.id_cliente && (
-                          <tr className="pet-detail-row">
-                            <td></td>
-                            <td></td>
-                            <td>
-                              <div className="pet-detail-panel">
-                                {cargandoMascotas && !mascotasPorCliente[c.id_cliente] && (
-                                  <span className="sub">Cargando…</span>
-                                )}
-                                {mascotasPorCliente[c.id_cliente]?.length === 0 && (
-                                  <span className="sub">Sin mascotas registradas</span>
-                                )}
-                                {mascotasPorCliente[c.id_cliente]?.map((m) => (
-                                  <span key={m.id_mascota} className="pet-tag">
-                                    {m.nombre} · {m.especie}
-                                    <button
-                                      type="button"
-                                      className="pet-tag-edit"
-                                      title="Editar mascota"
-                                      aria-label={`Editar ${m.nombre}`}
-                                      onClick={() =>
-                                        abrirModal("mascota", {
-                                          clienteId: c.id_cliente,
-                                          editId: m.id_mascota,
-                                          valoresIniciales: {
-                                            nombre: m.nombre,
-                                            especie: m.especie,
-                                            raza: m.raza || "",
-                                          },
-                                        })
-                                      }
-                                    >
-                                      ✎
-                                    </button>
+              <FiltroChips
+                label="Filtrar clientes"
+                activo={filtroCliente}
+                onChange={setFiltroCliente}
+                opciones={[
+                  { valor: "todos", label: "Todos", total: conteoClientes.todos },
+                  { valor: "con", label: "Con mascota", total: conteoClientes.con },
+                  { valor: "sin", label: "Sin mascota", total: conteoClientes.sin, tono: "muted" },
+                ]}
+              />
+
+              <div className="client-grid">
+                {clientesFiltrados.length === 0 && <p className="catalog-empty">Ningún cliente coincide con la búsqueda.</p>}
+                {clientesFiltrados.map((c, i) => {
+                  const suyas = mascotasDe(c.id_cliente);
+                  const nombreCompleto = `${c.nombre} ${c.apellido}`;
+                  return (
+                    <article className="client-card" key={c.id_cliente} style={{ ["--i" as string]: i }}>
+                      <header className="client-head">
+                        <span className="client-avatar" style={{ background: TONOS_AVATAR[c.id_cliente % TONOS_AVATAR.length] }}>
+                          {initials(nombreCompleto)}
+                        </span>
+                        <div className="client-id">
+                          <h3>{nombreCompleto}</h3>
+                          <p className="num">{c.cedula || "Sin cédula"}</p>
+                        </div>
+                        <button
+                          className="icon-btn"
+                          type="button"
+                          title="Editar cliente"
+                          aria-label={`Editar a ${nombreCompleto}`}
+                          onClick={() =>
+                            abrirModal("cliente", {
+                              editId: c.id_cliente,
+                              valoresIniciales: {
+                                nombre: c.nombre,
+                                apellido: c.apellido,
+                                cedula: c.cedula || "",
+                                telefono: c.telefono || "",
+                                email: c.email || "",
+                              },
+                            })
+                          }
+                        >
+                          {Icon.pencil}
+                        </button>
+                      </header>
+
+                      <ul className="client-contact">
+                        <li data-empty={!c.telefono}>
+                          {Icon.phone}
+                          {c.telefono ? <a href={`tel:${c.telefono}`}>{c.telefono}</a> : "Sin teléfono"}
+                        </li>
+                        <li data-empty={!c.email}>
+                          {Icon.mail}
+                          {c.email ? <a href={`mailto:${c.email}`}>{c.email}</a> : "Sin correo"}
+                        </li>
+                      </ul>
+
+                      <section className="client-pets" aria-label={`Mascotas de ${nombreCompleto}`}>
+                        <div className="client-pets-head">
+                          <span>
+                            {suyas.length === 0
+                              ? "Sin mascotas registradas"
+                              : `${suyas.length} ${suyas.length === 1 ? "mascota" : "mascotas"}`}
+                          </span>
+                          <span className="client-since">Cliente desde {FORMATO_ALTA.format(new Date(c.fecha_registro))}</span>
+                        </div>
+
+                        <div className="pet-list">
+                          {suyas.map((m) => {
+                            const detalles = [m.raza, edad(m.fecha_nacimiento), m.peso ? `${Number(m.peso)} kg` : null].filter(Boolean);
+                            return (
+                              <div className="pet-chip" key={m.id_mascota} data-inactive={!m.estado}>
+                                <PetArt especie={m.especie} size="sm" />
+                                <div className="pet-info">
+                                  <span className="pet-name">
+                                    {m.nombre}
+                                    {m.sexo && (
+                                      <span
+                                        className="pet-sex"
+                                        data-sexo={m.sexo}
+                                        title={m.sexo === "M" ? "Macho" : "Hembra"}
+                                        aria-label={m.sexo === "M" ? "Macho" : "Hembra"}
+                                      >
+                                        {m.sexo === "M" ? "♂" : "♀"}
+                                      </span>
+                                    )}
                                   </span>
-                                ))}
+                                  <span className="pet-detail">
+                                    {m.especie}
+                                    {detalles.length > 0 && `, ${detalles.join(", ")}`}
+                                  </span>
+                                </div>
+                                <button
+                                  type="button"
+                                  className="pet-edit"
+                                  title="Editar mascota"
+                                  aria-label={`Editar a ${m.nombre}`}
+                                  onClick={() =>
+                                    abrirModal("mascota", {
+                                      clienteId: c.id_cliente,
+                                      editId: m.id_mascota,
+                                      valoresIniciales: {
+                                        nombre: m.nombre,
+                                        especie: m.especie,
+                                        raza: m.raza || "",
+                                        sexo: m.sexo || "",
+                                      },
+                                    })
+                                  }
+                                >
+                                  {Icon.pencil}
+                                </button>
                               </div>
-                            </td>
-                            <td></td>
-                          </tr>
-                        )}
-                      </Fragment>
-                    ))}
-                  </tbody>
-                </table>
+                            );
+                          })}
+                          <button
+                            type="button"
+                            className="pet-add"
+                            onClick={() => abrirModal("mascota", { clienteId: c.id_cliente })}
+                          >
+                            {Icon.plus}
+                            {suyas.length === 0 ? "Registrar su primera mascota" : "Agregar mascota"}
+                          </button>
+                        </div>
+                      </section>
+                    </article>
+                  );
+                })}
               </div>
-            </div>
+            </>
           )}
 
+          {/* ======================= SERVICIOS ======================= */}
           {tab === "servicios" && (
-            <div>
-              <div className="toolbar" style={{ marginBottom: 14 }}>
-                <input
-                  className="input"
-                  type="text"
-                  placeholder="Buscar servicio…"
-                  value={buscarServicio}
-                  onChange={(e) => setBuscarServicio(e.target.value)}
-                />
+            <>
+              <div className="catalog-toolbar">
+                <Buscador valor={buscarServicio} onChange={setBuscarServicio} placeholder="Buscar servicio o tipo" />
                 {esGerente && (
                   <button className="btn btn-primary" type="button" onClick={() => abrirModal("servicio")}>
-                    + Nuevo servicio
+                    {Icon.plus}
+                    Nuevo servicio
                   </button>
                 )}
               </div>
-              <div className="table-wrap">
-                <table>
-                  <thead>
-                    <tr>
-                      <th>Servicio</th>
-                      <th>Tipo</th>
-                      <th>Duración</th>
-                      <th>Precio</th>
-                      {esGerente && <th></th>}
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {serviciosFiltrados.map((s) => (
-                      <tr key={s.id_servicio}>
-                        <td className="row-name">
-                          {s.nombre}
-                          {!s.estado && (
-                            <span className="badge badge-danger" style={{ marginLeft: 8 }}>
-                              Inactivo
-                            </span>
-                          )}
-                        </td>
-                        <td>{s.tipo_servicio}</td>
-                        <td>{s.duracion_estimada ? `${s.duracion_estimada} min` : "—"}</td>
-                        <td className="num">{money(s.precio)}</td>
-                        {esGerente && (
-                          <td className="actions-cell">
-                            <button
-                              className="icon-btn"
-                              type="button"
-                              aria-label="Editar"
-                              onClick={() =>
-                                abrirModal("servicio", {
-                                  editId: s.id_servicio,
-                                  valoresIniciales: {
-                                    nombre: s.nombre,
-                                    idTipoServicio: String(s.id_tipo_servicio),
-                                    precio: s.precio,
-                                    duracionEstimada: s.duracion_estimada ? String(s.duracion_estimada) : "",
-                                  },
-                                })
-                              }
-                            >
-                              ✎
-                            </button>
-                            <button
-                              className="icon-btn"
-                              type="button"
-                              title={s.estado ? "Desactivar servicio" : "Activar servicio"}
-                              aria-label={s.estado ? "Desactivar" : "Activar"}
-                              onClick={() => desactivarServicio(s)}
-                            >
-                              ⏻
-                            </button>
-                          </td>
-                        )}
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
+              <FiltroChips
+                label="Filtrar servicios"
+                activo={filtroServicio}
+                onChange={setFiltroServicio}
+                opciones={[
+                  { valor: "todos", label: "Todos", total: conteoServicios.todos },
+                  { valor: "activos", label: "Activos", total: conteoServicios.activos },
+                  { valor: "inactivos", label: "Inactivos", total: conteoServicios.inactivos, tono: "muted" },
+                ]}
+              />
+
+              <div className="catalog-grid">
+                {serviciosFiltrados.length === 0 && <p className="catalog-empty">No hay servicios con estos filtros.</p>}
+                {serviciosFiltrados.map((s, i) => (
+                  <article className="cat-card" key={s.id_servicio} data-inactive={!s.estado} style={{ ["--i" as string]: i }}>
+                    <div className="cat-card-top">
+                      <ItemArt kind="servicio" categoria={s.tipo_servicio} nombre={s.nombre} />
+                      {s.estado ? <span className="badge badge-success">Activo</span> : <span className="badge badge-muted">Inactivo</span>}
+                    </div>
+                    <div className="cat-card-title">
+                      <h3 className="cat-card-name">{s.nombre}</h3>
+                      <p className="cat-card-meta">{s.tipo_servicio}</p>
+                      {s.descripcion && <p className="cat-card-desc">{s.descripcion}</p>}
+                    </div>
+                    <div className="cat-card-foot">
+                      <span className="cat-card-price">{money(s.precio)}</span>
+                      <span className="duration-chip">
+                        {Icon.clock}
+                        {s.duracion_estimada ? `${s.duracion_estimada} min` : "Sin duración"}
+                      </span>
+                    </div>
+                    {esGerente && (
+                      <div className="cat-card-actions">
+                        <button
+                          className="btn btn-ghost btn-sm"
+                          type="button"
+                          onClick={() =>
+                            abrirModal("servicio", {
+                              editId: s.id_servicio,
+                              valoresIniciales: {
+                                nombre: s.nombre,
+                                idTipoServicio: String(s.id_tipo_servicio),
+                                precio: s.precio,
+                                duracionEstimada: s.duracion_estimada ? String(s.duracion_estimada) : "",
+                              },
+                            })
+                          }
+                        >
+                          {Icon.pencil}
+                          Editar
+                        </button>
+                        <button
+                          className="icon-btn"
+                          type="button"
+                          title={s.estado ? "Desactivar servicio" : "Activar servicio"}
+                          aria-label={s.estado ? `Desactivar ${s.nombre}` : `Activar ${s.nombre}`}
+                          data-on={s.estado}
+                          onClick={() => desactivarServicio(s)}
+                        >
+                          {Icon.power}
+                        </button>
+                      </div>
+                    )}
+                  </article>
+                ))}
               </div>
-            </div>
+            </>
           )}
-        </>
+        </div>
       )}
 
       {modal && (
         <div className="modal-overlay" onClick={cerrarModal}>
-          <div className="modal-card" onClick={(e) => e.stopPropagation()}>
+          <div className="modal-card" onClick={(e) => e.stopPropagation()} role="dialog" aria-modal="true">
             <div className="modal-head">
-              <h3>
-                {modal === "producto" && (editandoId ? "Editar producto" : "Nuevo producto")}
-                {modal === "cliente" && (editandoId ? "Editar cliente" : "Nuevo cliente")}
-                {modal === "servicio" && (editandoId ? "Editar servicio" : "Nuevo servicio")}
-                {modal === "mascota" && (editandoId ? "Editar mascota" : "Nueva mascota")}
-              </h3>
+              <div>
+                <h3>
+                  {modal === "producto" && (editandoId ? "Editar producto" : "Nuevo producto")}
+                  {modal === "cliente" && (editandoId ? "Editar cliente" : "Nuevo cliente")}
+                  {modal === "servicio" && (editandoId ? "Editar servicio" : "Nuevo servicio")}
+                  {modal === "mascota" && (editandoId ? "Editar mascota" : "Nueva mascota")}
+                </h3>
+                {modal === "mascota" && clienteDelModal && (
+                  <p className="modal-sub">
+                    De {clienteDelModal.nombre} {clienteDelModal.apellido}
+                  </p>
+                )}
+              </div>
               <button className="modal-close" type="button" onClick={cerrarModal} aria-label="Cerrar">
-                ✕
+                {Icon.close}
               </button>
             </div>
             <div className="modal-body">
               {modal === "producto" && (
                 <>
                   <div className="field">
-                    <label>Nombre</label>
+                    <label htmlFor="m-nombre">Nombre</label>
                     <input
+                      id="m-nombre"
                       className="input"
                       placeholder="Ej. Pelota de Goma Resistente"
                       value={form.nombre || ""}
@@ -646,8 +797,9 @@ export function CatalogoPage() {
                   </div>
                   <div className="grid2">
                     <div className="field">
-                      <label>Categoría</label>
+                      <label htmlFor="m-categoria">Categoría</label>
                       <select
+                        id="m-categoria"
                         className="select"
                         value={form.idCategoria || ""}
                         onChange={(e) => actualizarForm("idCategoria", e.target.value)}
@@ -663,8 +815,9 @@ export function CatalogoPage() {
                       </select>
                     </div>
                     <div className="field">
-                      <label>Precio</label>
+                      <label htmlFor="m-precio">Precio</label>
                       <input
+                        id="m-precio"
                         className="input"
                         type="number"
                         step="0.01"
@@ -676,8 +829,9 @@ export function CatalogoPage() {
                   </div>
                   <div className="grid2">
                     <div className="field">
-                      <label>Stock inicial</label>
+                      <label htmlFor="m-stock">{editandoId ? "Stock actual" : "Stock inicial"}</label>
                       <input
+                        id="m-stock"
                         className="input"
                         type="number"
                         placeholder="0"
@@ -686,8 +840,9 @@ export function CatalogoPage() {
                       />
                     </div>
                     <div className="field">
-                      <label>Stock mínimo</label>
+                      <label htmlFor="m-minimo">Stock mínimo</label>
                       <input
+                        id="m-minimo"
                         className="input"
                         type="number"
                         placeholder="5"
@@ -701,8 +856,9 @@ export function CatalogoPage() {
               {modal === "cliente" && (
                 <>
                   <div className="field">
-                    <label>Cédula</label>
+                    <label htmlFor="m-cedula">Cédula</label>
                     <input
+                      id="m-cedula"
                       className="input"
                       placeholder="Ej. 8-888-8888"
                       value={form.cedula || ""}
@@ -711,8 +867,9 @@ export function CatalogoPage() {
                   </div>
                   <div className="grid2">
                     <div className="field">
-                      <label>Nombre</label>
+                      <label htmlFor="m-cnombre">Nombre</label>
                       <input
+                        id="m-cnombre"
                         className="input"
                         placeholder="Ej. Laura"
                         value={form.nombre || ""}
@@ -720,8 +877,9 @@ export function CatalogoPage() {
                       />
                     </div>
                     <div className="field">
-                      <label>Apellido</label>
+                      <label htmlFor="m-apellido">Apellido</label>
                       <input
+                        id="m-apellido"
                         className="input"
                         placeholder="Ej. Herrera"
                         value={form.apellido || ""}
@@ -730,8 +888,9 @@ export function CatalogoPage() {
                     </div>
                   </div>
                   <div className="field">
-                    <label>Teléfono</label>
+                    <label htmlFor="m-telefono">Teléfono</label>
                     <input
+                      id="m-telefono"
                       className="input"
                       placeholder="6000-0000"
                       value={form.telefono || ""}
@@ -739,8 +898,9 @@ export function CatalogoPage() {
                     />
                   </div>
                   <div className="field">
-                    <label>Correo (opcional)</label>
+                    <label htmlFor="m-email">Correo (opcional)</label>
                     <input
+                      id="m-email"
                       className="input"
                       placeholder="correo@ejemplo.com"
                       value={form.email || ""}
@@ -752,8 +912,9 @@ export function CatalogoPage() {
               {modal === "servicio" && (
                 <>
                   <div className="field">
-                    <label>Nombre</label>
+                    <label htmlFor="m-snombre">Nombre</label>
                     <input
+                      id="m-snombre"
                       className="input"
                       placeholder="Ej. Corte de pelo especializado"
                       value={form.nombre || ""}
@@ -762,8 +923,9 @@ export function CatalogoPage() {
                   </div>
                   <div className="grid2">
                     <div className="field">
-                      <label>Tipo</label>
+                      <label htmlFor="m-tipo">Tipo</label>
                       <select
+                        id="m-tipo"
                         className="select"
                         value={form.idTipoServicio || ""}
                         onChange={(e) => actualizarForm("idTipoServicio", e.target.value)}
@@ -779,8 +941,9 @@ export function CatalogoPage() {
                       </select>
                     </div>
                     <div className="field">
-                      <label>Duración (min)</label>
+                      <label htmlFor="m-duracion">Duración (min)</label>
                       <input
+                        id="m-duracion"
                         className="input"
                         type="number"
                         placeholder="30"
@@ -790,8 +953,9 @@ export function CatalogoPage() {
                     </div>
                   </div>
                   <div className="field">
-                    <label>Precio</label>
+                    <label htmlFor="m-sprecio">Precio</label>
                     <input
+                      id="m-sprecio"
                       className="input"
                       type="number"
                       step="0.01"
@@ -804,33 +968,62 @@ export function CatalogoPage() {
               )}
               {modal === "mascota" && (
                 <>
+                  <div className="pet-form-preview">
+                    <PetArt especie={form.especie || ""} />
+                    <div className="field" style={{ flex: 1 }}>
+                      <label htmlFor="m-mnombre">Nombre</label>
+                      <input
+                        id="m-mnombre"
+                        className="input"
+                        placeholder="Ej. Firulais"
+                        value={form.nombre || ""}
+                        onChange={(e) => actualizarForm("nombre", e.target.value)}
+                      />
+                    </div>
+                  </div>
                   <div className="field">
-                    <label>Nombre</label>
+                    <span className="field-label">Especie</span>
+                    <div className="species-options" role="radiogroup" aria-label="Especie">
+                      {ESPECIES.map((e) => (
+                        <button
+                          key={e}
+                          type="button"
+                          role="radio"
+                          aria-checked={form.especie === e}
+                          className="species-option"
+                          onClick={() => actualizarForm("especie", e)}
+                        >
+                          <PetArt especie={e} size="sm" />
+                          {e}
+                        </button>
+                      ))}
+                    </div>
                     <input
                       className="input"
-                      placeholder="Ej. Firulais"
-                      value={form.nombre || ""}
-                      onChange={(e) => actualizarForm("nombre", e.target.value)}
+                      placeholder="Otra especie (escríbela aquí)"
+                      aria-label="Otra especie"
+                      value={ESPECIES.includes(form.especie || "") ? "" : form.especie || ""}
+                      onChange={(e) => actualizarForm("especie", e.target.value)}
                     />
                   </div>
                   <div className="grid2">
                     <div className="field">
-                      <label>Especie</label>
+                      <label htmlFor="m-raza">Raza (opcional)</label>
                       <input
-                        className="input"
-                        placeholder="Perro, Gato…"
-                        value={form.especie || ""}
-                        onChange={(e) => actualizarForm("especie", e.target.value)}
-                      />
-                    </div>
-                    <div className="field">
-                      <label>Raza (opcional)</label>
-                      <input
+                        id="m-raza"
                         className="input"
                         placeholder="Ej. Labrador"
                         value={form.raza || ""}
                         onChange={(e) => actualizarForm("raza", e.target.value)}
                       />
+                    </div>
+                    <div className="field">
+                      <label htmlFor="m-sexo">Sexo (opcional)</label>
+                      <select id="m-sexo" className="select" value={form.sexo || ""} onChange={(e) => actualizarForm("sexo", e.target.value)}>
+                        <option value="">Sin indicar</option>
+                        <option value="M">Macho</option>
+                        <option value="H">Hembra</option>
+                      </select>
                     </div>
                   </div>
                 </>
@@ -843,7 +1036,14 @@ export function CatalogoPage() {
                 Cancelar
               </button>
               <button className="btn btn-primary" type="button" onClick={handleGuardar} disabled={guardando}>
-                {guardando ? "Guardando…" : "Guardar"}
+                {guardando ? (
+                  <>
+                    <span className="spinner" aria-hidden="true" />
+                    Guardando…
+                  </>
+                ) : (
+                  "Guardar"
+                )}
               </button>
             </div>
           </div>

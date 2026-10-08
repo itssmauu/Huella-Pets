@@ -1,235 +1,187 @@
-import { useEffect, useState } from "react";
+import { useRef } from "react";
 import { Link } from "react-router-dom";
+import { PhotoStack } from "../components/home/PhotoStack";
+import { InkText, CountUp } from "../components/home/ScrollBits";
+import { ServiceList } from "../components/home/ServiceList";
+import { OpenStatus } from "../components/home/OpenStatus";
+import { PawIcon } from "../components/home/icons";
+import { useReveal, useScrolled } from "../hooks/useReveal";
 
-const SERVICIOS_HOME = [
-  {
-    titulo: "Alimentos y accesorios",
-    texto: "Alimento, juguetes, correas y todo lo necesario para el día a día.",
-    icon: (
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
-        <path d="M6 8h12l1 12a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2L6 8Z" />
-        <path d="M9 8V6a3 3 0 0 1 6 0v2" />
-      </svg>
-    ),
-  },
-  {
-    titulo: "Estética",
-    texto: "Baño, corte y cuidado de uñas, adaptado a cada raza y tamaño.",
-    icon: (
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
-        <path d="M12 3s6 7 6 11a6 6 0 0 1-12 0c0-4 6-11 6-11Z" />
-      </svg>
-    ),
-  },
-  {
-    titulo: "Veterinaria",
-    texto: "Consultas generales, vacunación y desparasitación.",
-    icon: (
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
-        <circle cx="12" cy="12" r="9" />
-        <path d="M12 8v8M8 12h8" />
-      </svg>
-    ),
-  },
-  {
-    titulo: "Cuidado preventivo",
-    texto: "Seguimiento y recordatorios para mantener a tu mascota siempre sana.",
-    icon: (
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
-        <rect x="3" y="5" width="18" height="16" rx="2" />
-        <path d="M3 10h18" />
-        <path d="M8 3v4M16 3v4" />
-        <path d="m9 15 2 2 4-4" />
-      </svg>
-    ),
-  },
+const CINTA = [
+  "Baño y secado",
+  "Corte por raza",
+  "Vacunación",
+  "Alimento premium",
+  "Desparasitación",
+  "Juguetes y correas",
+  "Consulta general",
+  "Corte de uñas",
 ];
 
-const CARRUSEL_HERO = [
-  {
-    src: "https://images.unsplash.com/photo-1450778869180-41d0601e046e?auto=format&fit=crop&w=900&q=80",
-    alt: "Perro y gato abrazados, felices y saludables",
-    etiqueta: "Nuestros animales",
-  },
-  {
-    src: "https://images.unsplash.com/photo-1568640347023-a616a30bc3bd?auto=format&fit=crop&w=900&q=80",
-    alt: "Juguetes y accesorios coloridos para mascotas",
-    etiqueta: "Productos y accesorios",
-  },
-  {
-    src: "https://images.unsplash.com/photo-1719464454959-9cf304ef4774?auto=format&fit=crop&w=900&q=80",
-    alt: "Perro recibiendo un servicio de estética canina",
-    etiqueta: "Servicios de estética",
-  },
-];
+const TITULO = ["Aquí conocemos", "a tu mascota", "por su nombre."];
+
+const NOSOTROS =
+  "Desde 2018 acompañamos a familias panameñas y a sus mascotas. Somos tienda, peluquería y consultorio en un mismo lugar, y cada visita queda registrada para que el historial de tu mascota esté siempre a la mano.";
+
+const MAPA = "https://www.google.com/maps/search/?api=1&query=V%C3%ADa+Espa%C3%B1a%2C+Ciudad+de+Panam%C3%A1";
+
+function Marca() {
+  return (
+    <Link className="brand-mark" to="/" aria-label="MELO Pets, inicio">
+      <div className="logo-dot">
+        <img src="/MELOPets_logo.png" alt="" />
+      </div>
+      <span>MELO Pets</span>
+    </Link>
+  );
+}
 
 export function HomePage() {
-  const [slideActual, setSlideActual] = useState(0);
-
-  useEffect(() => {
-    const elementos = document.querySelectorAll(".fade-in-section");
-    if (elementos.length === 0) return;
-
-    const observer = new IntersectionObserver(
-      (entries) => {
-        entries.forEach((entry) => {
-          entry.target.classList.toggle("is-visible", entry.isIntersecting);
-        });
-      },
-      { threshold: 0.15, rootMargin: "0px 0px -60px 0px" }
-    );
-
-    elementos.forEach((el) => observer.observe(el));
-
-    return () => observer.disconnect();
-  }, []);
-
-  useEffect(() => {
-    const prefiereMenosMovimiento = window.matchMedia(
-      "(prefers-reduced-motion: reduce)"
-    ).matches;
-    if (prefiereMenosMovimiento) return;
-
-    const intervalo = setInterval(() => {
-      setSlideActual((i) => (i + 1) % CARRUSEL_HERO.length);
-    }, 4500);
-
-    return () => clearInterval(intervalo);
-  }, []);
+  const pageRef = useRef<HTMLDivElement>(null);
+  const scrolled = useScrolled(24);
+  useReveal(pageRef);
 
   return (
-    <div className="home-page">
-      <header className="home-nav">
-        <div className="brand-mark">
-          <div className="logo-dot">
-            <img src="/MELOPets_logo.png" alt="" />
-          </div>
-          <span>MELO Pets</span>
-        </div>
-        <nav className="home-nav-links" aria-label="Navegación">
+    <div className="home-page" ref={pageRef}>
+      <header className="home-nav" data-scrolled={scrolled}>
+        <Marca />
+        <nav className="home-nav-links" aria-label="Secciones">
           <a href="#nosotros">Nosotros</a>
           <a href="#servicios">Servicios</a>
-          <a href="#contacto">Contacto</a>
+          <a href="#contacto">Visítanos</a>
         </nav>
         <Link className="btn btn-primary btn-sm" to="/login">
-          Iniciar sesión
+          <span>
+            Acceso<span className="only-wide"> del personal</span>
+          </span>
         </Link>
       </header>
 
-      <section className="home-hero-wrap">
-        <div className="home-hero">
-          <span className="eyebrow">Tienda y centro de cuidado de mascotas</span>
-          <h1>Todo lo que tu mascota necesita, en un solo lugar.</h1>
-          <p className="home-hero-sub">
-            Alimento, accesorios, estética y atención veterinaria — con un equipo que conoce a cada mascota por su nombre.
-          </p>
-          <div className="home-hero-actions">
-            <Link className="btn btn-primary" to="/login">
-              Iniciar sesión
-            </Link>
-            <a className="btn btn-ghost" href="#servicios">
-              Ver servicios
-            </a>
+      <main>
+        <section className="hero">
+          <div className="hero-copy">
+            <h1 className="hero-title">
+              {TITULO.map((linea, i) => (
+                <span className="line" key={linea}>
+                  <span style={{ ["--i" as string]: i }}>{linea}</span>
+                </span>
+              ))}
+            </h1>
+            <p className="hero-sub hero-fade" style={{ ["--d" as string]: "520ms" }}>
+              Alimento, accesorios, estética y veterinaria en Vía España, con un equipo que recuerda si a Bruno le
+              asusta la secadora.
+            </p>
+            <div className="hero-actions hero-fade" style={{ ["--d" as string]: "640ms" }}>
+              <a className="btn btn-primary btn-lg" href="#servicios">
+                Ver servicios
+              </a>
+              <a className="btn btn-ghost btn-lg" href="#contacto">
+                Cómo llegar
+              </a>
+            </div>
+            <div className="hero-fade" style={{ ["--d" as string]: "760ms" }}>
+              <OpenStatus />
+            </div>
           </div>
-        </div>
 
-        <div className="home-hero-media">
-          {CARRUSEL_HERO.map((slide, idx) => (
-            <img
-              key={slide.src}
-              src={slide.src}
-              alt={slide.alt}
-              className={`hero-carousel-slide${idx === slideActual ? " is-active" : ""}`}
-            />
-          ))}
+          <PhotoStack />
+        </section>
 
-          <span className="hero-carousel-tag">
-            {CARRUSEL_HERO[slideActual].etiqueta}
-          </span>
-
-          <div className="hero-carousel-dots" role="tablist" aria-label="Seleccionar imagen">
-            {CARRUSEL_HERO.map((slide, idx) => (
-              <button
-                key={slide.src}
-                type="button"
-                role="tab"
-                aria-selected={idx === slideActual}
-                aria-label={`Ver imagen ${idx + 1}: ${slide.etiqueta}`}
-                className={`hero-carousel-dot${idx === slideActual ? " is-active" : ""}`}
-                onClick={() => setSlideActual(idx)}
-              />
+        <div className="marquee" aria-label="Servicios: baño, corte, vacunación, alimento, desparasitación, accesorios, consulta y uñas">
+          <div className="marquee-track" aria-hidden="true">
+            {[0, 1].map((g) => (
+              <div className="marquee-group" key={g}>
+                {CINTA.map((t) => (
+                  <span className="marquee-item" key={t}>
+                    {t}
+                    <PawIcon />
+                  </span>
+                ))}
+              </div>
             ))}
           </div>
         </div>
-      </section>
 
-      <section className="home-stats fade-in-section">
-        <div className="stat-item">
-          <span className="stat-value">8</span>
-          <span className="stat-label">años en Panamá</span>
-        </div>
-        <div className="stat-item">
-          <span className="stat-value">500+</span>
-          <span className="stat-label">mascotas atendidas</span>
-        </div>
-        <div className="stat-item">
-          <span className="stat-value">4</span>
-          <span className="stat-label">especialidades</span>
-        </div>
-      </section>
-
-      <section className="home-section fade-in-section" id="nosotros">
-        <h2>Sobre MELO Pets</h2>
-        <p className="home-section-text">
-          Desde 2018 acompañamos a las familias panameñas y a sus mascotas, combinando una tienda de productos
-          seleccionados con cuidado profesional de estética y salud. Cada visita queda registrada, para que el
-          historial de tu mascota esté siempre a la mano.
-        </p>
-      </section>
-
-      <section className="home-section" id="servicios">
-        <h2>Nuestros servicios</h2>
-        <div className="service-grid">
-          {SERVICIOS_HOME.map((s, idx) => (
-            <div
-              className="card service-card fade-in-section"
-              key={s.titulo}
-              style={{ transitionDelay: `${idx * 90}ms` }}
-            >
-              {s.icon}
-              <h3>{s.titulo}</h3>
-              <p>{s.texto}</p>
+        <section className="section about" id="nosotros">
+          <InkText text={NOSOTROS} />
+          <div className="stats">
+            <div className="stat" data-reveal>
+              <CountUp to={8} />
+              <span className="stat-label">años en Panamá</span>
             </div>
-          ))}
-        </div>
-      </section>
+            <div className="stat" data-reveal style={{ ["--reveal-delay" as string]: 100 }}>
+              <CountUp to={500} suffix="+" />
+              <span className="stat-label">mascotas con historial</span>
+            </div>
+            <div className="stat" data-reveal style={{ ["--reveal-delay" as string]: 200 }}>
+              <CountUp to={4} />
+              <span className="stat-label">especialidades bajo un techo</span>
+            </div>
+          </div>
+        </section>
 
-      <section className="home-section fade-in-section" id="contacto">
-        <h2>Visítanos</h2>
-        <div className="contact-grid">
-          <div>
-            <span className="contact-label">Dirección</span>
-            <p>Vía España, Ciudad de Panamá</p>
+        <section className="section" id="servicios">
+          <div className="section-head">
+            <h2 className="section-title" data-reveal>
+              Lo que hacemos por tu mascota
+            </h2>
+            <p className="section-lede" data-reveal style={{ ["--reveal-delay" as string]: 120 }}>
+              Puedes venir por una bolsa de alimento y salir con las uñas cortadas. Todo queda en el mismo historial.
+            </p>
           </div>
-          <div>
-            <span className="contact-label">Horario</span>
-            <p>Lunes a sábado, 8:00 a.m. – 6:00 p.m.</p>
+          <ServiceList />
+        </section>
+
+        <section className="section" id="contacto">
+          <div className="visit" data-reveal>
+            <figure className="visit-photo" aria-hidden="true">
+              <img
+                src="https://images.unsplash.com/photo-1592194996308-7b43878e84a6?auto=format&fit=crop&w=520&h=600&q=75"
+                alt=""
+                loading="lazy"
+              />
+              <figcaption>Nala te saluda</figcaption>
+            </figure>
+            <h2 className="section-title">Pasa a saludarnos</h2>
+            <OpenStatus />
+            <div className="visit-grid">
+              <div>
+                <h3>Dirección</h3>
+                <p>Vía España, Ciudad de Panamá</p>
+              </div>
+              <div>
+                <h3>Horario</h3>
+                <p>
+                  Lunes a sábado
+                  <br />
+                  8:00 a.m. a 6:00 p.m.
+                </p>
+              </div>
+              <div>
+                <h3>Contacto</h3>
+                <p>
+                  <a href="tel:+50768675156">+507 6867-5156</a>
+                  <br />
+                  <a href="mailto:melopets@melopets.com">melopets@melopets.com</a>
+                </p>
+              </div>
+            </div>
+            <div className="visit-actions">
+              <a className="btn btn-accent btn-lg" href={MAPA} target="_blank" rel="noreferrer">
+                Abrir en Google Maps
+              </a>
+              <a className="btn btn-ghost btn-lg" href="https://wa.me/50768675156" target="_blank" rel="noreferrer">
+                Escribir por WhatsApp
+              </a>
+            </div>
           </div>
-          <div>
-            <span className="contact-label">Contacto</span>
-            <p>+507 6867-5156 · melopets@melopets.com</p>
-          </div>
-        </div>
-      </section>
+        </section>
+      </main>
 
       <footer className="home-footer">
-        <div className="brand-mark">
-          <div className="logo-dot">
-            <img src="/MELOPets_logo.png" alt="" />
-          </div>
-          <span>MELO Pets</span>
-        </div>
-        <p>© 2026 MELO Pets</p>
+        <Marca />
+        <p>© 2026 MELO Pets, Ciudad de Panamá</p>
+        <Link to="/login">Acceso del personal</Link>
       </footer>
     </div>
   );

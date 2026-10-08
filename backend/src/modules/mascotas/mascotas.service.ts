@@ -16,6 +16,11 @@ export interface Mascota {
 
 const SELECT_MASCOTA = `SELECT id_mascota, id_cliente, nombre, especie, raza, sexo, fecha_nacimiento, peso, observaciones, estado FROM mascotas`;
 
+export async function listarTodas(): Promise<Mascota[]> {
+  const { rows } = await query<Mascota>(`${SELECT_MASCOTA} ORDER BY id_cliente, nombre`);
+  return rows;
+}
+
 export async function listarPorCliente(idCliente: number): Promise<Mascota[]> {
   const { rows } = await query<Mascota>(`${SELECT_MASCOTA} WHERE id_cliente = $1 ORDER BY nombre`, [idCliente]);
   return rows;

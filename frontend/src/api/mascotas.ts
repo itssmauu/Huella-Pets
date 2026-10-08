@@ -24,6 +24,10 @@ export interface CrearMascotaInput {
   observaciones?: string;
 }
 
+export function listarMascotas(token: string) {
+  return apiFetch<Mascota[]>("/mascotas", { token });
+}
+
 export function listarMascotasPorCliente(token: string, idCliente: number) {
   return apiFetch<Mascota[]>(`/mascotas?idCliente=${idCliente}`, { token });
 }
